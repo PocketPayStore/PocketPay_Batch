@@ -43,9 +43,6 @@ public class DataSourceConfig {
     @Bean(name = "businessSqlSessionFactory")
     public SqlSessionFactory businessSqlSessionFactory(@Qualifier("businessDataSource") DataSource dataSource)
             throws Exception {
-        // classpath*: (단일 classpath:가 아니라) — 아직 매퍼 XML이 하나도 없는 지금 상태에서
-        // 단일 classpath:는 "경로 자체가 존재해야 함"을 요구해서 FileNotFoundException이 난다.
-        // classpath*:는 없으면 그냥 빈 결과로 넘어간다(MyBatis-Spring 공식 예제에서도 이 표기를 씀).
         return buildSqlSessionFactory(dataSource, "classpath*:mapper/business/**/*.xml");
     }
 
@@ -88,7 +85,7 @@ public class DataSourceConfig {
         factoryBean.setDataSource(dataSource);
         factoryBean.setMapperLocations(new PathMatchingResourcePatternResolver().getResources(mapperLocationPattern));
         org.apache.ibatis.session.Configuration mybatisConfiguration = new org.apache.ibatis.session.Configuration();
-        mybatisConfiguration.setMapUnderscoreToCamelCase(true); // DB는 snake_case, 자바 필드는 camelCase
+        mybatisConfiguration.setMapUnderscoreToCamelCase(true);
         factoryBean.setConfiguration(mybatisConfiguration);
         return factoryBean.getObject();
     }

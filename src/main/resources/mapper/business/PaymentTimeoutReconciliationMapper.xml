@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.PaymentTimeoutReconciliationMapper">
+
+    <select id="findCandidates" resultType="pocketpaystore.pocketpay_batch.job.paymenttimeoutreconciliation.dto.PaymentTimeoutCandidate">
+        SELECT p.id AS payment_id, p.order_id, p.pg_transaction_id, p.amount
+        FROM payment p
+        JOIN orders o ON o.id = p.order_id
+        WHERE p.status = 'TIMEOUT_UNKNOWN'
+          AND o.status = 'PAYMENT_PENDING'
+          AND p.updated_at &lt; DATE_SUB(NOW(6), INTERVAL #{thresholdMinutes} MINUTE)
+          AND p.id &gt; #{lastId}
+          AND p.is_deleted = false
+        ORDER BY p.id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="markPaymentDone">
+        UPDATE payment
+        SET status = 'DONE', approved_at = NOW(6), refundable_amount = amount, updated_at = NOW(6)
+        WHERE id = #{paymentId}
+          AND status = 'TIMEOUT_UNKNOWN'
+    </update>
+
+    <update id="markOrderPaid">
+        UPDATE orders
+        SET status = 'PAID', updated_at = NOW(6)
+        WHERE id = #{orderId}
+          AND status = 'PAYMENT_PENDING'
+    </update>
+</mapper>

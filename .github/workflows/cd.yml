@@ -50,6 +50,10 @@ jobs:
           aws s3 cp "$JAR_PATH" "s3://${{ vars.DEPLOY_ARTIFACT_BUCKET }}/$S3_KEY"
           echo "s3_key=$S3_KEY" >> "$GITHUB_OUTPUT"
 
+      # docker cp는 목적지 디렉터리가 이미 있어야 한다(없는 상위 경로를 알아서 안 만들어줌).
+      # 컨테이너 안 jenkins 유저는 /opt 밑에 쓰기 권한이 없고 컨테이너엔 sudo도 없어서,
+      # 호스트에서 docker exec -u root로 먼저 만들어준다(호스트 docker 데몬은 컨테이너 안
+      # 유저 권한과 무관하게 root로 exec 가능).
       - name: Deploy via SSM Run Command
         id: ssm
         run: |
@@ -60,7 +64,9 @@ jobs:
             --parameters commands="[
               \"set -e\",
               \"aws s3 cp s3://${{ vars.DEPLOY_ARTIFACT_BUCKET }}/${{ steps.upload.outputs.s3_key }} /tmp/pocketpay-batch.jar\",
+              \"docker exec -u root ${{ vars.JENKINS_CONTAINER_NAME }} mkdir -p $(dirname ${{ vars.BATCH_JAR_PATH_IN_CONTAINER }})\",
               \"docker cp /tmp/pocketpay-batch.jar ${{ vars.JENKINS_CONTAINER_NAME }}:${{ vars.BATCH_JAR_PATH_IN_CONTAINER }}\",
+              \"docker exec -u root ${{ vars.JENKINS_CONTAINER_NAME }} chmod -R a+rX $(dirname ${{ vars.BATCH_JAR_PATH_IN_CONTAINER }})\",
               \"rm -f /tmp/pocketpay-batch.jar\"
             ]" \
             --query "Command.CommandId" --output text)

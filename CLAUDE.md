@@ -104,6 +104,7 @@ PocketPay_Core의 원칙을 그대로 따른다: 이 배치는 성능형이 아�
 - 대상 EC2가 private subnet이라 GitHub Actions 러너에서 직접 붙을 네트워크 경로가 없다 — **AWS SSM Run Command**로 우회한다: ① jar를 S3 스테이징 버킷에 올리고 ② `aws ssm send-command`로 그 EC2에 "S3에서 내려받아 `docker cp`로 Jenkins 컨테이너 안에 넣는" 셸 스크립트를 원격 실행시킨다. SSM Agent가 EC2 → AWS로 아웃바운드 폴링하는 구조라 인바운드 포트를 열 필요가 없다는 게 이 방식을 쓰는 이유다.
 - 인프라 사전 준비(이 레포 밖): 대상 EC2에 SSM Agent + `AmazonSSMManagedInstanceCore` 권한의 인스턴스 프로파일, GitHub Actions가 assume하는 배포 롤에 `s3:PutObject`/`ssm:SendCommand`/`ssm:GetCommandInvocation` 권한, 그리고 `cd.yml` 상단 주석에 적힌 GitHub `vars` 5종(`AWS_REGION`, `DEPLOY_ARTIFACT_BUCKET`, `EC2_INSTANCE_ID`, `JENKINS_CONTAINER_NAME`, `BATCH_JAR_PATH_IN_CONTAINER`). `BATCH_JAR_PATH_IN_CONTAINER`는 `/opt/pocketpay-batch/app.jar`로 정함 — Jenkins workspace와 무관한 전용 경로(다른 잡이 지우거나 덮어쓸 일 없게). **이 값 자체는 코드로 못 넣는다** — GitHub 레포 Settings → Secrets and variables → Actions → Variables에 직접 등록해둘 것(`gh variable set BATCH_JAR_PATH_IN_CONTAINER --body "/opt/pocketpay-batch/app.jar"`로도 가능).
 - Docker 이미지를 안 쓰므로 이 레포엔 `Dockerfile`이 없다.
+- **알려진 함정**: `docker cp`는 목적지 디렉터리가 이미 있어야 하고, 없는 상위 경로를 알아서 만들어주지 않는다. 컨테이너 안 `jenkins` 유저는 `/opt` 밑에 쓰기 권한이 없고 컨테이너엔 `sudo`도 없어서(실제로 겪음), `docker cp` 전에 호스트에서 `docker exec -u root <container> mkdir -p ...`로 먼저 만들어준다 — 호스트의 Docker 데몬은 컨테이너 안 유저 권한과 무관하게 root로 exec할 수 있어서 이렇게 우회 가능. 복사 후엔 `chmod -R a+rX`로 Jenkins가 실제 실행할 때 읽을 수 있게 해준다.
 
 ---
 

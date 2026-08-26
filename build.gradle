@@ -1,0 +1,71 @@
+plugins {
+    id 'java'
+    id 'org.springframework.boot' version '4.1.1'
+    id 'io.spring.dependency-management' version '1.1.7'
+}
+
+group = 'PocketPayStore'
+version = '0.0.1-SNAPSHOT'
+description = 'PocketPay_Batch'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(17)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    // ── Batch ─────────────────────────────────────────────────────────────────
+    implementation 'org.springframework.boot:spring-boot-starter-batch'
+
+    // ── Database (MyBatis — payment-core와 달리 JPA를 쓰지 않는다) ────────────────
+    // mybatis-spring-boot-starter는 Spring Boot BOM에 편입되어 있지 않아 버전을 직접 명시한다.
+    // Spring Boot 4.1 호환이 확인된 최신 안정 버전으로 주기적으로 갱신할 것.
+    // Flyway는 의도적으로 넣지 않는다 — PocketPay_Core와 같은 RDB(스키마)를 공유하는데,
+    // 이 레포가 별도 Flyway 히스토리를 가지면 두 레포의 마이그레이션 버전이 서로를 모른 채
+    // 같은 스키마를 건드리게 된다. 스키마 소유권은 PocketPay_Core 하나로 고정한다 — 자세한
+    // 내용은 CLAUDE.md "PocketPay_Core와의 관계" 참고.
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:3.0.4'
+    implementation 'org.springframework.boot:spring-boot-h2console'
+    runtimeOnly 'com.h2database:h2'
+    runtimeOnly 'com.mysql:mysql-connector-j'
+
+    // ── Monitoring ────────────────────────────────────────────────────────────
+    // 주의: 이 애플리케이션은 잡이 끝나면 프로세스가 종료되는 1회성 배치라, Prometheus의
+    // pull 기반 스크레이핑이 정상 동작하지 않을 수 있다(스크레이프 시점에 프로세스가 이미 종료됐을 수 있음).
+    // actuator/health는 잡 실행 전 사전 점검용으로 의미가 있지만, prometheus 레지스트리는
+    // Pushgateway 연동 등 별도 처리가 없다면 사실상 무의미하다 — CLAUDE.md에 이 트레이드오프를 남겨둔다.
+    implementation 'org.springframework.boot:spring-boot-starter-actuator'
+    runtimeOnly 'io.micrometer:micrometer-registry-prometheus'
+
+    // ── Utilities ─────────────────────────────────────────────────────────────
+    compileOnly 'org.projectlombok:lombok'
+    developmentOnly 'org.springframework.boot:spring-boot-devtools'
+    annotationProcessor 'org.projectlombok:lombok'
+
+    // ── Test ──────────────────────────────────────────────────────────────────
+    testImplementation 'org.springframework.boot:spring-boot-starter-actuator-test'
+    testImplementation 'org.springframework.boot:spring-boot-starter-batch-test'
+    testCompileOnly 'org.projectlombok:lombok'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testAnnotationProcessor 'org.projectlombok:lombok'
+
+    // MyBatis는 SQL을 그대로 실행하는 매퍼라 H2가 MySQL 방언 차이를 가려주지 않는다.
+    // 대사 쿼리의 정확성이 이 프로젝트의 핵심이므로, 통합테스트는 Testcontainers-MySQL로 검증한다
+    // (payment-core가 Redis에만 Testcontainers를 쓰고 DB는 H2로 충분했던 것과 다른 이유).
+    // Spring Boot BOM이 관리하는 testcontainers 코어 버전(2.0.5)에 맞춰 mysql/junit-jupiter도
+    // 자동으로 맞춰지길 기대했으나, 두 모듈은 아직 1.21.x까지만 릴리즈돼 있어 코어와 버전이
+    // 어긋난다(BOM이 세 모듈을 함께 관리하지 않음) — 바이너리 호환성을 위해 세 좌표 모두
+    // 1.21.4로 명시 고정한다. testcontainers 모듈들이 2.0.x 라인으로 맞춰 릴리즈되면 갱신할 것.
+    testImplementation 'org.testcontainers:testcontainers:1.21.4'
+    testImplementation 'org.testcontainers:mysql:1.21.4'
+    testImplementation 'org.testcontainers:junit-jupiter:1.21.4'
+}
+
+tasks.named('test') {
+    useJUnitPlatform()
+}

@@ -1,0 +1,26 @@
+spring:
+  main:
+    web-application-type: none # 웹 의존성이 없는 순수 배치라 servlet 강제하면 기동 실패
+
+  batch:
+    job:
+      # 테스트 컨텍스트 로드 시점에 실제 Job이 자동 실행되면 안 된다(아직 Job 자체가 없기도
+      # 하고, 컨텍스트 로드 테스트가 배치 실행까지 검증할 필요는 없음).
+      enabled: false
+    jdbc:
+      # 운영(application-dev.yml)은 never지만, 테스트는 H2 인메모리라 Boot가 공식 Spring
+      # Batch 스키마를 알아서 만들어주는 always를 써도 안전하고 훨씬 간편하다 — batchDataSource가
+      # @Primary라 이 초기화기가 정확히 그 DataSource를 대상으로 잡는다.
+      initialize-schema: always
+
+  datasource:
+    business:
+      jdbc-url: jdbc:h2:mem:business;MODE=MySQL;DB_CLOSE_DELAY=-1
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver
+    batch:
+      jdbc-url: jdbc:h2:mem:batch;MODE=MySQL;DB_CLOSE_DELAY=-1
+      username: sa
+      password:
+      driver-class-name: org.h2.Driver

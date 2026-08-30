@@ -118,4 +118,19 @@ CREATE TABLE BATCH_JOB_INSTANCE_SEQ (
 
 INSERT INTO BATCH_JOB_INSTANCE_SEQ (ID, UNIQUE_KEY) select * from (select 0 as ID, '0' as UNIQUE_KEY) as tmp where not exists(select * from BATCH_JOB_INSTANCE_SEQ);
 
--- ── 이 레포 전용 도메인 테이블 (아직 없음 — 대사 로직 구현 착수 시점에 여기 추가) ──
+-- ── 가맹점별 정산 집계 ──
+CREATE TABLE vendor_settlement_summary
+(
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    vendor_id           BIGINT NOT NULL,
+    period_start        DATE NOT NULL,
+    period_end          DATE NOT NULL,
+    original_amount     BIGINT NOT NULL,
+    pg_fee_amount       BIGINT NOT NULL,
+    platform_fee_amount BIGINT NOT NULL,
+    final_amount        BIGINT NOT NULL,
+    settlement_count    BIGINT NOT NULL,
+    created_at          DATETIME(6) NOT NULL,
+    updated_at          DATETIME(6) NOT NULL,
+    CONSTRAINT uk_vendor_settlement_period UNIQUE (vendor_id, period_start, period_end)
+) ENGINE=InnoDB;

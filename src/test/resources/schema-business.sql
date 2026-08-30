@@ -119,3 +119,24 @@ CREATE TABLE payment_status_history
 
 CREATE INDEX idx_payment_status_history_payment_id_id
     ON payment_status_history (payment_id, id);
+
+CREATE TABLE settlement
+(
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    payment_id          BIGINT      NOT NULL,
+    vendor_id            BIGINT      NOT NULL,
+    amount              BIGINT      NOT NULL,
+    pg_fee_amount       BIGINT      NOT NULL,
+    platform_fee_amount BIGINT      NOT NULL,
+    net_amount          BIGINT      NOT NULL,
+    status              VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    settled_at          DATETIME(6),
+    created_at          DATETIME(6) NOT NULL,
+    updated_at          DATETIME(6) NOT NULL,
+    is_deleted           BOOLEAN     NOT NULL DEFAULT FALSE,
+    CONSTRAINT fk_settlement_payment FOREIGN KEY (payment_id) REFERENCES payment (id),
+    CONSTRAINT fk_settlement_vendor FOREIGN KEY (vendor_id) REFERENCES vendor (id),
+    CONSTRAINT ck_settlement_status CHECK (status IN ('PENDING', 'SETTLED', 'FAILED'))
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_settlement_payment_id ON settlement (payment_id);

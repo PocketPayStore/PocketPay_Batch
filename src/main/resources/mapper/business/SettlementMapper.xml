@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.SettlementMapper">
+
+    <select id="findPending" resultType="pocketpaystore.pocketpay_batch.job.settlement.dto.SettlementCandidate">
+        SELECT s.vendor_id,
+               SUM(s.amount) AS original_amount,
+               SUM(s.pg_fee_amount) AS pg_fee_amount,
+               SUM(s.platform_fee_amount) AS platform_fee_amount,
+               SUM(s.net_amount) AS final_amount,
+               COUNT(*) AS settlement_count
+        FROM settlement s
+        JOIN payment p ON p.id = s.payment_id
+        WHERE s.status = 'PENDING'
+          AND s.is_deleted = false
+          AND p.is_deleted = false
+          AND s.vendor_id &gt; #{lastId}
+        <if test="startDate != null">
+          AND s.created_at &gt;= #{startDate}
+        </if>
+        <if test="endDate != null">
+          AND s.created_at &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+        </if>
+        GROUP BY s.vendor_id
+        ORDER BY s.vendor_id ASC
+        LIMIT #{limit}
+    </select>
+
+    <update id="markSettled">
+        UPDATE settlement
+        SET status = 'SETTLED', settled_at = NOW(6), updated_at = NOW(6)
+        WHERE status = 'PENDING'
+          AND is_deleted = false
+          AND vendor_id IN
+        <foreach collection="vendorIds" item="vendorId" open="(" separator="," close=")">
+            #{vendorId}
+        </foreach>
+        AND created_at &gt;= #{startDate}
+        AND created_at &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+    </update>
+</mapper>

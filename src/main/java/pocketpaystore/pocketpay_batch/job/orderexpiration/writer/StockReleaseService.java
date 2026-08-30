@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 import org.redisson.api.RLock;
 import org.redisson.api.RedissonClient;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -25,6 +26,7 @@ public class StockReleaseService {
 
 	private final RedissonClient redissonClient;
 	private final OrderExpirationMapper mapper;
+	private final ApplicationEventPublisher eventPublisher;
 
 	@Value("${lock.default-wait-time-seconds:5}")
 	private long waitTimeSeconds;
@@ -50,15 +52,19 @@ public class StockReleaseService {
 		try {
 			for (Long productId : quantitiesByProduct.keySet()) {
 				RLock lock = redissonClient.getLock("lock:stock:" + productId);
+				log.info("[배치] 재고 락 대기 시작: 상품 ID={}", productId);
 				if (!lock.tryLock(waitTimeSeconds, leaseTimeSeconds, TimeUnit.SECONDS)) {
 					throw new IllegalStateException("[Expiration] 재고 락 획득 실패: productId=" + productId);
 				}
+				log.info("[배치] 재고 락 획득: 상품 ID={}", productId);
 				acquiredLocks.add(lock);
 			}
+			eventPublisher.publishEvent(new StockReleaseLocksAcquiredEvent(new ArrayList<>(quantitiesByProduct.keySet())));
 			for (Map.Entry<Long, Integer> entry : quantitiesByProduct.entrySet()) {
 				if (mapper.releaseStock(entry.getKey(), entry.getValue()) == 0) {
 					throw new IllegalStateException("[Expiration] 재고 원복 UPDATE 0건: productId=" + entry.getKey());
 				}
+				log.info("[배치] 예약 재고 복구 완료: 상품 ID={}, 복구 수량={}", entry.getKey(), entry.getValue());
 			}
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
@@ -66,7 +72,10 @@ public class StockReleaseService {
 		} finally {
 			for (int i = acquiredLocks.size() - 1; i >= 0; i--) {
 				RLock lock = acquiredLocks.get(i);
-				if (lock.isHeldByCurrentThread()) lock.unlock();
+				if (lock.isHeldByCurrentThread()) {
+					lock.unlock();
+					log.info("[배치] 재고 락 해제: 상품 ID={}", quantitiesByProduct.keySet().toArray()[i]);
+				}
 			}
 		}
 	}

@@ -27,7 +27,8 @@ public class PaymentTimeoutItemWriter implements ItemWriter<PaymentTimeoutCandid
 		try {
 			MockPgTransactionResponse response = mockPgClient.getTransaction(payment.getPgTransactionId());
 			if (!"APPROVED".equals(response.getStatus())) return;
-			if (stateService.markPaidIfStillTimeoutUnknown(payment.getPaymentId(), payment.getOrderId())) {
+			if (stateService.markPaidIfStillTimeoutUnknown(
+					payment.getPaymentId(), payment.getOrderId(), payment.getOrderNumber())) {
 				log.warn("[PaymentTimeout] PG 승인 확인 후 결제 완료 정정: orderId={}, paymentId={}", payment.getOrderId(), payment.getPaymentId());
 			}
 		} catch (HttpClientErrorException.NotFound e) {

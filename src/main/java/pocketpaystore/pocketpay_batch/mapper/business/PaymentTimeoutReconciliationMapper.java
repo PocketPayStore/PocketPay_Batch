@@ -14,4 +14,6 @@ public interface PaymentTimeoutReconciliationMapper {
 	int markPaymentDone(@Param("paymentId") Long paymentId);
 
 	int markOrderPaid(@Param("orderId") Long orderId);
+
+	int savePaymentStatusHistory(@Param("paymentId") Long paymentId);
 }

@@ -105,3 +105,17 @@ CREATE TABLE payment
 ) ENGINE = InnoDB;
 
 CREATE INDEX idx_payment_order_id ON payment (order_id);
+
+CREATE TABLE payment_status_history
+(
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    payment_id      BIGINT      NOT NULL,
+    status          VARCHAR(20) NOT NULL,
+    created_at      DATETIME(6) NOT NULL,
+    updated_at      DATETIME(6) NOT NULL,
+    is_deleted      BOOLEAN     NOT NULL DEFAULT FALSE,
+    CONSTRAINT fk_payment_status_history_payment FOREIGN KEY (payment_id) REFERENCES payment (id)
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_payment_status_history_payment_id_id
+    ON payment_status_history (payment_id, id);

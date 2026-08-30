@@ -10,6 +10,7 @@ import lombok.NoArgsConstructor;
 public class PaymentTimeoutCandidate {
 	private Long paymentId;
 	private Long orderId;
+	private String orderNumber;
 	private String pgTransactionId;
 	private Long amount;
 }

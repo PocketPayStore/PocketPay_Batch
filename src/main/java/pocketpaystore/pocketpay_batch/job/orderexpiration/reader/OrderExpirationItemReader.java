@@ -7,12 +7,9 @@ import org.springframework.batch.core.configuration.annotation.StepScope;
 import org.springframework.batch.infrastructure.item.ItemReader;
 import org.springframework.stereotype.Component;
 
-import lombok.extern.slf4j.Slf4j;
-
 import pocketpaystore.pocketpay_batch.job.orderexpiration.parameter.OrderExpirationJobParameter;
 import pocketpaystore.pocketpay_batch.mapper.business.OrderExpirationMapper;
 
-@Slf4j
 @StepScope
 @Component
 public class OrderExpirationItemReader implements ItemReader<Long> {
@@ -46,9 +43,6 @@ public class OrderExpirationItemReader implements ItemReader<Long> {
 		int chunkSize = jobParameter.getChunkSize().intValue();
 		List<Long> candidateIds = mapper.findExpirationCandidateIds(
 				thresholdMinutes, lastId, chunkSize, jobParameter.getStartDate(), jobParameter.getEndDate());
-		log.info(
-				"[Expiration] 만료 후보 {}건 조회: thresholdMinutes={}, lastId={}, startDate={}, endDate={}",
-				candidateIds.size(), thresholdMinutes, lastId, jobParameter.getStartDate(), jobParameter.getEndDate());
 		return candidateIds;
 	}
 

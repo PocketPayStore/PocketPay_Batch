@@ -22,3 +22,6 @@ spring:
 
 mock-pg:
   base-url: http://localhost:0
+
+payment-events:
+  channel: payment:status-changed

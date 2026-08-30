@@ -3,7 +3,7 @@
 <mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.PaymentTimeoutReconciliationMapper">
 
     <select id="findCandidates" resultType="pocketpaystore.pocketpay_batch.job.paymenttimeoutreconciliation.dto.PaymentTimeoutCandidate">
-        SELECT p.id AS payment_id, p.order_id, p.pg_transaction_id, p.amount
+        SELECT p.id AS payment_id, p.order_id, o.order_number, p.pg_transaction_id, p.amount
         FROM payment p
         JOIN orders o ON o.id = p.order_id
         WHERE p.status = 'TIMEOUT_UNKNOWN'
@@ -28,4 +28,11 @@
         WHERE id = #{orderId}
           AND status = 'PAYMENT_PENDING'
     </update>
+
+    <insert id="savePaymentStatusHistory">
+        INSERT INTO payment_status_history
+            (payment_id, status, created_at, updated_at, is_deleted)
+        VALUES
+            (#{paymentId}, 'DONE', NOW(6), NOW(6), false)
+    </insert>
 </mapper>

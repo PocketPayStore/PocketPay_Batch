@@ -105,6 +105,7 @@ CREATE TABLE payment
 ) ENGINE = InnoDB;
 
 CREATE INDEX idx_payment_order_id ON payment (order_id);
+CREATE INDEX idx_payment_status_id ON payment (status, id);
 
 CREATE TABLE payment_status_history
 (
@@ -196,6 +197,7 @@ CREATE TABLE settlement
     updated_at          DATETIME(6) NOT NULL,
     is_deleted           BOOLEAN     NOT NULL DEFAULT FALSE,
     CONSTRAINT fk_settlement_payment FOREIGN KEY (payment_id) REFERENCES payment (id),
+    CONSTRAINT uk_settlement_payment_id UNIQUE (payment_id),
     CONSTRAINT fk_settlement_vendor FOREIGN KEY (vendor_id) REFERENCES vendor (id),
     CONSTRAINT ck_settlement_status CHECK (status IN ('PENDING', 'SETTLED', 'FAILED'))
 ) ENGINE = InnoDB;

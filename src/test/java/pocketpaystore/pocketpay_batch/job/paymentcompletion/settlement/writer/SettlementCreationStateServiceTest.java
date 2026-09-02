@@ -13,13 +13,18 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.dto.SettlementCreationCandidate;
+import pocketpaystore.pocketpay_batch.mapper.business.SettlementCreationMapper;
 import pocketpaystore.pocketpay_batch.support.ExpirationTestSupport;
 
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-class SettlementRecoveryStateServiceTest extends ExpirationTestSupport {
+class SettlementCreationStateServiceTest extends ExpirationTestSupport {
 
 	@Autowired
-	private SettlementRecoveryStateService stateService;
+	private SettlementCreationStateService stateService;
+
+	@Autowired
+	private SettlementCreationMapper mapper;
 
 	@Autowired
 	@Qualifier("businessDataSource")
@@ -33,28 +38,34 @@ class SettlementRecoveryStateServiceTest extends ExpirationTestSupport {
 	}
 
 	@Test
-	void createsSettlementRowAndResolvesAlert() {
-		Fixture fixture = seed(20000L);
+	void findsCompletedPaymentAndCreatesSettlement() {
+		long paymentId = seedCompletedPayment(20_000L);
+		SettlementCreationCandidate candidate = mapper.findCandidates(0, 100, 0.029, 0.05).stream()
+				.filter(it -> it.getPaymentId() == paymentId)
+				.findFirst()
+				.orElseThrow();
 
-		assertThat(stateService.recover(fixture.alertId(), fixture.paymentId(), 10)).isTrue();
+		assertThat(stateService.create(candidate)).isTrue();
 
-		assertThat(settlementCount(fixture.paymentId())).isEqualTo(1);
-		assertThat(netAmount(fixture.paymentId())).isEqualTo(20000L - Math.round(20000L * 0.029) - Math.round(20000L * 0.05));
-		assertThat(alertStatus(fixture.alertId())).isEqualTo("RESOLVED");
+		assertThat(settlementCount(paymentId)).isEqualTo(1);
+		assertThat(netAmount(paymentId))
+				.isEqualTo(20_000L - Math.round(20_000L * 0.029) - Math.round(20_000L * 0.05));
 	}
 
 	@Test
-	void doesNotDoubleInsertSettlement_whenAlertAlreadyResolved() {
-		Fixture fixture = seed(20000L);
-		assertThat(stateService.recover(fixture.alertId(), fixture.paymentId(), 10)).isTrue();
+	void doesNotCreateDuplicateSettlement() {
+		long paymentId = seedCompletedPayment(20_000L);
+		SettlementCreationCandidate candidate = mapper.findCandidates(0, 100, 0.029, 0.05).stream()
+				.filter(it -> it.getPaymentId() == paymentId)
+				.findFirst()
+				.orElseThrow();
 
-		boolean secondAttempt = stateService.recover(fixture.alertId(), fixture.paymentId(), 10);
-
-		assertThat(secondAttempt).isFalse();
-		assertThat(settlementCount(fixture.paymentId())).isEqualTo(1);
+		assertThat(stateService.create(candidate)).isTrue();
+		assertThat(stateService.create(candidate)).isFalse();
+		assertThat(settlementCount(paymentId)).isEqualTo(1);
 	}
 
-	private Fixture seed(long amount) {
+	private long seedCompletedPayment(long amount) {
 		String suffix = UUID.randomUUID().toString();
 		jdbcTemplate.update("INSERT INTO member (email, password, name, role, created_at, updated_at) VALUES (?, 'test1234', '정산테스트', 'USER', NOW(6), NOW(6))", "settlement-" + suffix + "@test.com");
 		Long memberId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
@@ -67,10 +78,7 @@ class SettlementRecoveryStateServiceTest extends ExpirationTestSupport {
 		jdbcTemplate.update("INSERT INTO order_item (order_id, product_id, quantity, unit_price, created_at, updated_at) VALUES (?, ?, 1, ?, NOW(6), NOW(6))", orderId, productId, amount);
 		jdbcTemplate.update("INSERT INTO payment (order_id, payment_method, pg_provider, pg_transaction_id, idempotency_key, amount, status, created_at, updated_at) VALUES (?, 'CARD', 'mock-pg', ?, ?, ?, 'DONE', NOW(6), NOW(6))",
 				orderId, "MOCK-" + suffix, "IDEM-PAY-" + suffix, amount);
-		Long paymentId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-		jdbcTemplate.update("INSERT INTO payment_alert_log (alert_type, severity, payment_id, order_id, message, status, created_at, updated_at) VALUES ('PAYMENT_COMPLETION_FAILED', 'WARNING', ?, ?, 'SETTLEMENT 후처리 실패', 'PENDING', NOW(6), NOW(6))", paymentId, orderId);
-		Long alertId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
-		return new Fixture(alertId, paymentId);
+		return jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 	}
 
 	private int settlementCount(long paymentId) {
@@ -80,10 +88,4 @@ class SettlementRecoveryStateServiceTest extends ExpirationTestSupport {
 	private long netAmount(long paymentId) {
 		return jdbcTemplate.queryForObject("SELECT net_amount FROM settlement WHERE payment_id = ?", Long.class, paymentId);
 	}
-
-	private String alertStatus(long alertId) {
-		return jdbcTemplate.queryForObject("SELECT status FROM payment_alert_log WHERE id = ?", String.class, alertId);
-	}
-
-	private record Fixture(long alertId, long paymentId) { }
 }

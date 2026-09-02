@@ -46,10 +46,13 @@ class PointRecoveryStateServiceTest extends ExpirationTestSupport {
 	@Test
 	void usesPointsAndAppendsLedger() {
 		Fixture fixture = seed(2000L, 20000L, 500L);
+		reservePoints(fixture, 500L);
 
 		assertThat(stateService.recover(fixture.alertId(), fixture.paymentId(), fixture.orderId(), "POINT_USE", 10)).isTrue();
 
 		assertThat(balanceOf(fixture.memberId())).isEqualTo(1500L);
+		assertThat(reservedAmountOf(fixture.memberId())).isZero();
+		assertThat(reservationStatus(fixture.paymentId())).isEqualTo("USED");
 		assertThat(ledgerCount(fixture.orderId(), "USE")).isEqualTo(1);
 		assertThat(alertStatus(fixture.alertId())).isEqualTo("RESOLVED");
 	}
@@ -83,6 +86,25 @@ class PointRecoveryStateServiceTest extends ExpirationTestSupport {
 
 	private Long balanceOf(long memberId) {
 		return jdbcTemplate.queryForObject("SELECT balance FROM point_balance WHERE member_id = ?", Long.class, memberId);
+	}
+
+	private Long reservedAmountOf(long memberId) {
+		return jdbcTemplate.queryForObject(
+				"SELECT reserved_amount FROM point_balance WHERE member_id = ?", Long.class, memberId);
+	}
+
+	private String reservationStatus(long paymentId) {
+		return jdbcTemplate.queryForObject(
+				"SELECT status FROM point_reservation WHERE payment_id = ?", String.class, paymentId);
+	}
+
+	private void reservePoints(Fixture fixture, long amount) {
+		jdbcTemplate.update("UPDATE point_balance SET reserved_amount = ? WHERE member_id = ?",
+				amount, fixture.memberId());
+		jdbcTemplate.update("INSERT INTO point_reservation "
+				+ "(payment_id, member_id, amount, status, created_at, updated_at) "
+				+ "VALUES (?, ?, ?, 'RESERVED', NOW(6), NOW(6))",
+				fixture.paymentId(), fixture.memberId(), amount);
 	}
 
 	private int ledgerCount(long orderId, String type) {

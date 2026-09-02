@@ -7,6 +7,7 @@ import org.apache.ibatis.annotations.Param;
 
 import pocketpaystore.pocketpay_batch.job.paymentcompletion.point.dto.PointRecoveryCandidate;
 import pocketpaystore.pocketpay_batch.job.paymentcompletion.point.dto.PointRecoveryContext;
+import pocketpaystore.pocketpay_batch.mapper.business.dto.PointReservationContext;
 
 @Mapper
 public interface PointRecoveryMapper {
@@ -21,7 +22,13 @@ public interface PointRecoveryMapper {
 
 	Long findBalanceForUpdate(@Param("memberId") long memberId);
 
+	PointReservationContext findPointReservationForUpdate(@Param("paymentId") long paymentId);
+
 	int updateBalance(@Param("memberId") long memberId, @Param("balance") long balance);
+
+	int updateBalanceForReservationConfirmation(@Param("memberId") long memberId, @Param("amount") long amount);
+
+	int confirmPointReservation(@Param("paymentId") long paymentId);
 
 	int insertLedger(@Param("memberId") long memberId, @Param("orderId") long orderId,
 			@Param("type") String type, @Param("amount") long amount, @Param("balanceAfter") long balanceAfter);

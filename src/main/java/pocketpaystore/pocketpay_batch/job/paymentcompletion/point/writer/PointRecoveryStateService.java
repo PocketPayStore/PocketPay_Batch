@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 
 import pocketpaystore.pocketpay_batch.job.paymentcompletion.point.dto.PointRecoveryContext;
 import pocketpaystore.pocketpay_batch.mapper.business.PointRecoveryMapper;
+import pocketpaystore.pocketpay_batch.mapper.business.dto.PointReservationContext;
 
 @Slf4j
 @Service
@@ -49,6 +50,13 @@ public class PointRecoveryStateService {
 			mapper.markResolved(alertId);
 			return true;
 		}
+		if (POINT_USE.equals(completionStep)) {
+			PointReservationContext reservation = mapper.findPointReservationForUpdate(paymentId);
+			if (reservation != null) {
+				confirmReservation(alertId, paymentId, orderId, reservation);
+				return true;
+			}
+		}
 
 		long delta = POINT_USE.equals(completionStep) ? -amount : amount;
 		Long currentBalance = mapper.findBalanceForUpdate(context.getMemberId());
@@ -65,6 +73,26 @@ public class PointRecoveryStateService {
 		mapper.insertLedger(context.getMemberId(), orderId, ledgerType, delta, balanceAfter);
 		mapper.markResolved(alertId);
 		return true;
+	}
+
+	private void confirmReservation(long alertId, long paymentId, long orderId,
+			PointReservationContext reservation) {
+		if (!"RESERVED".equals(reservation.getStatus())) {
+			mapper.markResolved(alertId);
+			return;
+		}
+		long balanceAfter = reservation.getBalance() - reservation.getAmount();
+		if (balanceAfter < 0 || reservation.getReservedAmount() < reservation.getAmount()) {
+			throw new IllegalStateException("[PointRecovery] 포인트 예약 확정 불가: paymentId=" + paymentId);
+		}
+		if (mapper.updateBalanceForReservationConfirmation(
+				reservation.getMemberId(), reservation.getAmount()) != 1
+				|| mapper.confirmPointReservation(paymentId) != 1) {
+			throw new IllegalStateException("[PointRecovery] 포인트 예약 확정 결과 불일치: paymentId=" + paymentId);
+		}
+		mapper.insertLedger(reservation.getMemberId(), orderId, "USE",
+				-reservation.getAmount(), balanceAfter);
+		mapper.markResolved(alertId);
 	}
 
 	@Transactional("businessTransactionManager")

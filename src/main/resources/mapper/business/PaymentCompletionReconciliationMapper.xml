@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.PaymentCompletionReconciliationMapper">
+    <select id="findPendingAlerts" resultType="map">
+        SELECT id, alert_type, payment_id, order_id
+        FROM payment_alert_log
+        WHERE status IN ('PENDING', 'FAILED') AND id &gt; #{lastId}
+        ORDER BY id ASC LIMIT #{limit}
+    </select>
+    <update id="markProcessing">UPDATE payment_alert_log SET status='PROCESSING', updated_at=NOW(6) WHERE id=#{alertId} AND status IN ('PENDING','FAILED')</update>
+    <update id="completeStock">
+        UPDATE stock s JOIN order_item oi ON oi.product_id=s.product_id
+        SET s.reserved_quantity=s.reserved_quantity-oi.quantity,
+            s.sold_quantity=s.sold_quantity+oi.quantity,
+            s.updated_at=NOW(6)
+        WHERE oi.order_id=#{orderId} AND s.reserved_quantity &gt;= oi.quantity
+    </update>
+    <update id="completePoint">
+        UPDATE point_balance pb JOIN orders o ON o.member_id=pb.member_id
+        JOIN payment p ON p.order_id=o.id
+        SET pb.balance=pb.balance + ROUND(p.amount * 0.05), pb.updated_at=NOW(6)
+        WHERE o.id=#{orderId}
+          AND NOT EXISTS (SELECT 1 FROM point_ledger pl WHERE pl.order_id=o.id AND pl.type='EARN')
+    </update>
+    <insert id="completeSettlement">
+        INSERT INTO settlement(payment_id, vendor_id, amount, pg_fee_amount, platform_fee_amount, net_amount, status, created_at, updated_at)
+        SELECT p.id, pr.vendor_id, p.amount, ROUND(p.amount*0.029), ROUND(p.amount*0.05),
+               p.amount-ROUND(p.amount*0.029)-ROUND(p.amount*0.05), 'PENDING', NOW(6), NOW(6)
+        FROM payment p JOIN order_item oi ON oi.order_id=p.order_id JOIN product pr ON pr.id=oi.product_id
+        WHERE p.id=#{paymentId} AND NOT EXISTS (SELECT 1 FROM settlement s WHERE s.payment_id=p.id)
+    </insert>
+    <update id="markResolved">UPDATE payment_alert_log SET status='RESOLVED', resolved_at=NOW(6), updated_at=NOW(6) WHERE id=#{alertId}</update>
+    <update id="markFailed">UPDATE payment_alert_log SET status='FAILED', retry_count=retry_count+1, updated_at=NOW(6) WHERE id=#{alertId}</update>
+</mapper>

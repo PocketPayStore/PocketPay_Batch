@@ -120,6 +120,22 @@ CREATE TABLE payment_status_history
 CREATE INDEX idx_payment_status_history_payment_id_id
     ON payment_status_history (payment_id, id);
 
+CREATE TABLE payment_alert_log
+(
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    alert_type  VARCHAR(50)  NOT NULL,
+    severity    VARCHAR(20)  NOT NULL,
+    payment_id  BIGINT       NULL,
+    order_id    BIGINT       NULL,
+    message     VARCHAR(500) NOT NULL,
+    status      VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+    retry_count INT          NOT NULL DEFAULT 0,
+    resolved_at DATETIME(6)  NULL,
+    created_at  DATETIME(6)  NOT NULL,
+    updated_at  DATETIME(6)  NOT NULL,
+    is_deleted  BOOLEAN      NOT NULL DEFAULT FALSE
+) ENGINE = InnoDB;
+
 CREATE TABLE settlement
 (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY,

@@ -125,11 +125,28 @@ CREATE TABLE point_balance
     id         BIGINT AUTO_INCREMENT PRIMARY KEY,
     member_id  BIGINT      NOT NULL,
     balance    BIGINT      NOT NULL DEFAULT 0,
+    reserved_amount BIGINT NOT NULL DEFAULT 0,
     created_at DATETIME(6) NOT NULL,
     updated_at DATETIME(6) NOT NULL,
     is_deleted BOOLEAN     NOT NULL DEFAULT FALSE,
     CONSTRAINT uk_point_balance_member_id UNIQUE (member_id),
     CONSTRAINT fk_point_balance_member FOREIGN KEY (member_id) REFERENCES member (id)
+) ENGINE = InnoDB;
+
+CREATE TABLE point_reservation
+(
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    payment_id BIGINT      NOT NULL,
+    member_id  BIGINT      NOT NULL,
+    amount     BIGINT      NOT NULL,
+    status     VARCHAR(20) NOT NULL,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    is_deleted BOOLEAN     NOT NULL DEFAULT FALSE,
+    CONSTRAINT uk_point_reservation_payment UNIQUE (payment_id),
+    CONSTRAINT fk_point_reservation_payment FOREIGN KEY (payment_id) REFERENCES payment (id),
+    CONSTRAINT fk_point_reservation_member FOREIGN KEY (member_id) REFERENCES member (id),
+    CONSTRAINT ck_point_reservation_status CHECK (status IN ('RESERVED', 'USED', 'RELEASED'))
 ) ENGINE = InnoDB;
 
 CREATE TABLE point_ledger

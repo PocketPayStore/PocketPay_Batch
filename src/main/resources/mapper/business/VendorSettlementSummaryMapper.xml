@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
-<mapper namespace="pocketpaystore.pocketpay_batch.mapper.batch.VendorSettlementSummaryMapper">
+<mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.VendorSettlementSummaryMapper">
     <insert id="upsert">
         INSERT INTO vendor_settlement_summary
             (vendor_id, period_start, period_end, original_amount, pg_fee_amount,

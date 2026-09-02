@@ -7,7 +7,7 @@ import org.springframework.boot.autoconfigure.SpringBootApplication;
 public class PocketPayBatchApplication {
 
 	public static void main(String[] args) {
-		SpringApplication.run(PocketPayBatchApplication.class, args);
+		System.exit(SpringApplication.exit(SpringApplication.run(PocketPayBatchApplication.class, args)));
 	}
 
 }

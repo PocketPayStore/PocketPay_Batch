@@ -10,7 +10,7 @@ import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
 
 import pocketpaystore.pocketpay_batch.job.settlement.dto.SettlementCandidate;
-import pocketpaystore.pocketpay_batch.mapper.batch.VendorSettlementSummaryMapper;
+import pocketpaystore.pocketpay_batch.mapper.business.VendorSettlementSummaryMapper;
 import pocketpaystore.pocketpay_batch.mapper.business.SettlementMapper;
 
 @Service

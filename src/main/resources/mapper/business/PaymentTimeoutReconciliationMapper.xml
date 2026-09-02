@@ -22,6 +22,14 @@
           AND status = 'TIMEOUT_UNKNOWN'
     </update>
 
+    <update id="markPaymentFailed">
+        UPDATE payment
+        SET status = 'FAILED', failure_code = 'PG_RECONCILIATION_FAILED',
+            failure_message = 'PG 대사 결과 승인 실패', updated_at = NOW(6)
+        WHERE id = #{paymentId}
+          AND status = 'TIMEOUT_UNKNOWN'
+    </update>
+
     <update id="markOrderPaid">
         UPDATE orders
         SET status = 'PAID', updated_at = NOW(6)
@@ -34,5 +42,64 @@
             (payment_id, status, created_at, updated_at, is_deleted)
         VALUES
             (#{paymentId}, 'DONE', NOW(6), NOW(6), false)
+    </insert>
+
+    <insert id="saveFailedPaymentStatusHistory">
+        INSERT INTO payment_status_history
+            (payment_id, status, created_at, updated_at, is_deleted)
+        VALUES
+            (#{paymentId}, 'FAILED', NOW(6), NOW(6), false)
+    </insert>
+
+    <select id="findPointReservationForUpdate"
+            resultType="pocketpaystore.pocketpay_batch.mapper.business.dto.PointReservationContext">
+        SELECT pr.member_id AS memberId, pr.amount, pr.status,
+               pb.balance, pb.reserved_amount AS reservedAmount
+        FROM point_reservation pr
+        JOIN point_balance pb ON pb.member_id = pr.member_id
+        WHERE pr.payment_id = #{paymentId}
+        FOR UPDATE
+    </select>
+
+    <select id="findUsedPointAmount" resultType="java.lang.Long">
+        SELECT used_point_amount FROM payment WHERE id = #{paymentId}
+    </select>
+
+    <update id="confirmPointReservation">
+        UPDATE point_reservation
+        SET status = 'USED', updated_at = NOW(6)
+        WHERE payment_id = #{paymentId}
+          AND status = 'RESERVED'
+    </update>
+
+    <update id="releasePointReservation">
+        UPDATE point_reservation
+        SET status = 'RELEASED', updated_at = NOW(6)
+        WHERE payment_id = #{paymentId}
+          AND status = 'RESERVED'
+    </update>
+
+    <update id="updatePointBalanceForConfirmation">
+        UPDATE point_balance
+        SET balance = balance - #{amount},
+            reserved_amount = reserved_amount - #{amount},
+            updated_at = NOW(6)
+        WHERE member_id = #{memberId}
+          AND balance &gt;= #{amount}
+          AND reserved_amount &gt;= #{amount}
+    </update>
+
+    <update id="updatePointBalanceForRelease">
+        UPDATE point_balance
+        SET reserved_amount = reserved_amount - #{amount}, updated_at = NOW(6)
+        WHERE member_id = #{memberId}
+          AND reserved_amount &gt;= #{amount}
+    </update>
+
+    <insert id="insertPointUseLedger">
+        INSERT INTO point_ledger
+            (member_id, order_id, type, amount, balance_after, created_at, updated_at, is_deleted)
+        VALUES
+            (#{memberId}, #{orderId}, 'USE', -#{amount}, #{balanceAfter}, NOW(6), NOW(6), false)
     </insert>
 </mapper>

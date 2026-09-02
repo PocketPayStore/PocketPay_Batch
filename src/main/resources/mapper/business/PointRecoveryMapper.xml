@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.PointRecoveryMapper">
+
+    <select id="findPendingAlerts" resultType="pocketpaystore.pocketpay_batch.job.paymentcompletion.point.dto.PointRecoveryCandidate">
+        SELECT id AS alertId, payment_id AS paymentId, order_id AS orderId,
+               SUBSTRING_INDEX(message, ' ', 1) AS completionStep
+        FROM payment_alert_log
+        WHERE alert_type = 'PAYMENT_COMPLETION_FAILED'
+          AND message LIKE 'POINT\_%'
+          AND id &gt; #{lastId}
+          AND (status IN ('PENDING', 'FAILED')
+               OR (status = 'PROCESSING' AND updated_at &lt; DATE_SUB(NOW(6), INTERVAL #{staleMinutes} MINUTE)))
+        ORDER BY id ASC
+        LIMIT #{chunkSize}
+    </select>
+
+    <update id="claim">
+        UPDATE payment_alert_log
+        SET status='PROCESSING', updated_at=NOW(6)
+        WHERE id = #{alertId}
+          AND (status IN ('PENDING', 'FAILED')
+               OR (status = 'PROCESSING' AND updated_at &lt; DATE_SUB(NOW(6), INTERVAL #{staleMinutes} MINUTE)))
+    </update>
+
+    <select id="findContext" resultType="pocketpaystore.pocketpay_batch.job.paymentcompletion.point.dto.PointRecoveryContext">
+        SELECT o.member_id AS memberId, p.amount AS amount, p.used_point_amount AS usedPointAmount
+        FROM payment p
+                 JOIN orders o ON o.id = p.order_id
+        WHERE p.id = #{paymentId}
+    </select>
+
+    <select id="existsLedgerEntry" resultType="boolean">
+        SELECT EXISTS(SELECT 1 FROM point_ledger WHERE order_id = #{orderId} AND type = #{type})
+    </select>
+
+    <select id="findBalanceForUpdate" resultType="java.lang.Long">
+        SELECT balance FROM point_balance WHERE member_id = #{memberId} FOR UPDATE
+    </select>
+
+    <update id="updateBalance">
+        UPDATE point_balance SET balance = #{balance}, updated_at = NOW(6) WHERE member_id = #{memberId}
+    </update>
+
+    <insert id="insertLedger">
+        INSERT INTO point_ledger (member_id, order_id, type, amount, balance_after, created_at, updated_at)
+        VALUES (#{memberId}, #{orderId}, #{type}, #{amount}, #{balanceAfter}, NOW(6), NOW(6))
+    </insert>
+
+    <update id="markResolved">
+        UPDATE payment_alert_log SET status='RESOLVED', resolved_at=NOW(6), updated_at=NOW(6) WHERE id=#{alertId}
+    </update>
+
+    <update id="markFailed">
+        UPDATE payment_alert_log SET status='FAILED', retry_count=retry_count+1, updated_at=NOW(6) WHERE id=#{alertId}
+    </update>
+
+</mapper>

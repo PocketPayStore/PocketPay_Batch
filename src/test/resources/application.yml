@@ -25,3 +25,6 @@ mock-pg:
 
 payment-events:
   channel: payment:status-changed
+
+payment-completion:
+  point-earn-rate: 0.05

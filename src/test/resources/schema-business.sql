@@ -120,6 +120,34 @@ CREATE TABLE payment_status_history
 CREATE INDEX idx_payment_status_history_payment_id_id
     ON payment_status_history (payment_id, id);
 
+CREATE TABLE point_balance
+(
+    id         BIGINT AUTO_INCREMENT PRIMARY KEY,
+    member_id  BIGINT      NOT NULL,
+    balance    BIGINT      NOT NULL DEFAULT 0,
+    created_at DATETIME(6) NOT NULL,
+    updated_at DATETIME(6) NOT NULL,
+    is_deleted BOOLEAN     NOT NULL DEFAULT FALSE,
+    CONSTRAINT uk_point_balance_member_id UNIQUE (member_id),
+    CONSTRAINT fk_point_balance_member FOREIGN KEY (member_id) REFERENCES member (id)
+) ENGINE = InnoDB;
+
+CREATE TABLE point_ledger
+(
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    member_id     BIGINT      NOT NULL,
+    order_id      BIGINT,
+    type          VARCHAR(20) NOT NULL,
+    amount        BIGINT      NOT NULL,
+    balance_after BIGINT      NOT NULL,
+    created_at    DATETIME(6) NOT NULL,
+    updated_at    DATETIME(6) NOT NULL,
+    is_deleted    BOOLEAN     NOT NULL DEFAULT FALSE,
+    CONSTRAINT fk_point_ledger_member FOREIGN KEY (member_id) REFERENCES member (id),
+    CONSTRAINT fk_point_ledger_order FOREIGN KEY (order_id) REFERENCES orders (id),
+    CONSTRAINT ck_point_ledger_type CHECK (type IN ('EARN', 'USE', 'CANCEL_RESTORE'))
+) ENGINE = InnoDB;
+
 CREATE TABLE payment_alert_log
 (
     id          BIGINT AUTO_INCREMENT PRIMARY KEY,

@@ -26,15 +26,24 @@ public class PaymentTimeoutItemWriter implements ItemWriter<PaymentTimeoutCandid
 	private void reconcile(PaymentTimeoutCandidate payment) {
 		try {
 			MockPgTransactionResponse response = mockPgClient.getTransaction(payment.getPgTransactionId());
-			if (!"APPROVED".equals(response.getStatus())) return;
-			if (stateService.markPaidIfStillTimeoutUnknown(
-					payment.getPaymentId(), payment.getOrderId(), payment.getOrderNumber())) {
-				log.warn("[PaymentTimeout] PG 승인 확인 후 결제 완료 정정: orderId={}, paymentId={}", payment.getOrderId(), payment.getPaymentId());
+			if ("APPROVED".equals(response.getStatus())) {
+				if (stateService.markPaidIfStillTimeoutUnknown(
+						payment.getPaymentId(), payment.getOrderId(), payment.getOrderNumber())) {
+					log.warn("[PaymentTimeout] PG 승인 확인 후 결제 완료 정정: orderId={}, paymentId={}", payment.getOrderId(), payment.getPaymentId());
+				}
+			} else if (isDefinitiveFailure(response.getStatus())
+					&& stateService.markFailedIfStillTimeoutUnknown(
+						payment.getPaymentId(), payment.getOrderId(), payment.getOrderNumber())) {
+				log.warn("[PaymentTimeout] PG 승인 실패 확인 후 결제 실패 정정: orderId={}, paymentId={}", payment.getOrderId(), payment.getPaymentId());
 			}
 		} catch (HttpClientErrorException.NotFound e) {
 			log.warn("[PaymentTimeout] PG 거래를 찾지 못해 다음 회차에 재확인: paymentId={}", payment.getPaymentId());
 		} catch (Exception e) {
 			log.error("[PaymentTimeout] PG 재확인 실패, 다음 회차에 재시도: paymentId={}", payment.getPaymentId(), e);
 		}
+	}
+
+	private boolean isDefinitiveFailure(String status) {
+		return "FAILED".equals(status) || "DECLINED".equals(status) || "CANCELED".equals(status);
 	}
 }

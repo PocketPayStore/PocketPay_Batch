@@ -28,3 +28,7 @@ payment-events:
 
 payment-completion:
   point-earn-rate: 0.05
+
+settlement:
+  pg-fee-rate: 0.029
+  platform-fee-rate: 0.05

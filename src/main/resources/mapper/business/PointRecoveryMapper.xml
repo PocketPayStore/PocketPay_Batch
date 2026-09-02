@@ -7,7 +7,7 @@
                SUBSTRING_INDEX(message, ' ', 1) AS completionStep
         FROM payment_alert_log
         WHERE alert_type = 'PAYMENT_COMPLETION_FAILED'
-          AND message LIKE 'POINT\_%'
+          AND message LIKE 'POINT_EARN %'
           AND id &gt; #{lastId}
           AND (status IN ('PENDING', 'FAILED')
                OR (status = 'PROCESSING' AND updated_at &lt; DATE_SUB(NOW(6), INTERVAL #{staleMinutes} MINUTE)))
@@ -38,35 +38,8 @@
         SELECT balance FROM point_balance WHERE member_id = #{memberId} FOR UPDATE
     </select>
 
-    <select id="findPointReservationForUpdate"
-            resultType="pocketpaystore.pocketpay_batch.mapper.business.dto.PointReservationContext">
-        SELECT pr.member_id AS memberId, pr.amount, pr.status,
-               pb.balance, pb.reserved_amount AS reservedAmount
-        FROM point_reservation pr
-        JOIN point_balance pb ON pb.member_id = pr.member_id
-        WHERE pr.payment_id = #{paymentId}
-        FOR UPDATE
-    </select>
-
     <update id="updateBalance">
         UPDATE point_balance SET balance = #{balance}, updated_at = NOW(6) WHERE member_id = #{memberId}
-    </update>
-
-    <update id="updateBalanceForReservationConfirmation">
-        UPDATE point_balance
-        SET balance = balance - #{amount},
-            reserved_amount = reserved_amount - #{amount},
-            updated_at = NOW(6)
-        WHERE member_id = #{memberId}
-          AND balance &gt;= #{amount}
-          AND reserved_amount &gt;= #{amount}
-    </update>
-
-    <update id="confirmPointReservation">
-        UPDATE point_reservation
-        SET status = 'USED', updated_at = NOW(6)
-        WHERE payment_id = #{paymentId}
-          AND status = 'RESERVED'
     </update>
 
     <insert id="insertLedger">

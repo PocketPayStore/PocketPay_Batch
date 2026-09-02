@@ -9,10 +9,7 @@ import lombok.Getter;
 @Getter
 @StepScope
 @Component
-public class SettlementRecoveryJobParameter {
+public class SettlementCreationJobParameter {
 	@Value("#{jobParameters['chunkSize']}")
 	private Long chunkSize;
-
-	@Value("#{jobParameters['staleMinutes']}")
-	private Long staleMinutes;
 }

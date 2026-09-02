@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.SettlementCreationMapper">
+
+    <select id="findCandidates" resultType="pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.dto.SettlementCreationCandidate">
+        SELECT p.id AS paymentId,
+               pr.vendor_id AS vendorId,
+               p.amount AS amount,
+               ROUND(p.amount * #{pgFeeRate}) AS pgFeeAmount,
+               ROUND(p.amount * #{platformFeeRate}) AS platformFeeAmount,
+               p.amount - ROUND(p.amount * #{pgFeeRate}) - ROUND(p.amount * #{platformFeeRate}) AS netAmount
+        FROM payment p
+        JOIN order_item oi ON oi.order_id = p.order_id
+        JOIN product pr ON pr.id = oi.product_id
+        LEFT JOIN settlement s ON s.payment_id = p.id
+        WHERE p.id &gt; #{lastPaymentId}
+          AND p.status IN ('DONE', 'PARTIAL_CANCELED', 'CANCELED')
+          AND p.is_deleted = false
+          AND s.id IS NULL
+        ORDER BY p.id ASC
+        LIMIT #{chunkSize}
+    </select>
+
+    <insert id="insert">
+        INSERT INTO settlement (payment_id, vendor_id, amount, pg_fee_amount, platform_fee_amount, net_amount,
+                                status, created_at, updated_at)
+        SELECT #{candidate.paymentId}, #{candidate.vendorId}, #{candidate.amount},
+               #{candidate.pgFeeAmount}, #{candidate.platformFeeAmount}, #{candidate.netAmount},
+               'PENDING', NOW(6), NOW(6)
+        WHERE NOT EXISTS (
+            SELECT 1 FROM settlement WHERE payment_id = #{candidate.paymentId}
+        )
+    </insert>
+
+</mapper>

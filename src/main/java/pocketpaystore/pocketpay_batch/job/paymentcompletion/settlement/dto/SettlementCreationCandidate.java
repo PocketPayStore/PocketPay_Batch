@@ -7,8 +7,11 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class SettlementRecoveryCandidate {
-	private Long alertId;
+public class SettlementCreationCandidate {
 	private Long paymentId;
-	private Long orderId;
+	private Long vendorId;
+	private Long amount;
+	private Long pgFeeAmount;
+	private Long platformFeeAmount;
+	private Long netAmount;
 }

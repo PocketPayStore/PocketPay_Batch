@@ -71,7 +71,3 @@ JDK 17, Business MySQL, Batch metadata MySQL, Redis와 PocketPay PG가 필요합
 ~~~
 
 주문 만료, 파라미터 검증, 미확정 결제 보정, 포인트·재고 복구, 완료 결제 기반 정산 생성의 멱등성과 상태 전이를 테스트합니다.
-
-## 추가 문서
-
-- [결제 완료 후처리 복구 설계](README_POST_PAYMENT_RECONCILIATION.md)

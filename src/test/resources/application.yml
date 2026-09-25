@@ -20,14 +20,15 @@ spring:
       password:
       driver-class-name: org.h2.Driver
 
-mock-pg:
+toss:
   base-url: http://localhost:0
+  secret-key: test
 
 payment-events:
   channel: payment:status-changed
 
 payment-completion:
-  point-earn-rate: 0.05
+  point-earn-rate: 0.01
 
 settlement:
   pg-fee-rate: 0.029

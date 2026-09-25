@@ -1,4 +1,4 @@
-package pocketpaystore.pocketpay_batch.mapper.business;
+package pocketpaystore.pocketpay_batch.mapper.batch;
 
 import java.time.LocalDate;
 import java.util.List;

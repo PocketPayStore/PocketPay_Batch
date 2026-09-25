@@ -38,7 +38,7 @@ class PaymentTimeoutStateServiceTest extends ExpirationTestSupport {
 		Fixture fixture = seed("PAYMENT_PENDING");
 
 		assertThat(stateService.markPaidIfStillTimeoutUnknown(
-				fixture.paymentId(), fixture.orderId(), fixture.orderNumber())).isTrue();
+				fixture.paymentId(), fixture.orderId(), fixture.orderNumber(), fixture.amount(), fixture.memberId())).isTrue();
 
 		assertThat(statusOf("payment", fixture.paymentId())).isEqualTo("DONE");
 		assertThat(statusOf("orders", fixture.orderId())).isEqualTo("PAID");
@@ -46,7 +46,12 @@ class PaymentTimeoutStateServiceTest extends ExpirationTestSupport {
 		assertThat(pointBalance(fixture.memberId())).isEqualTo(2_000L);
 		assertThat(reservedPointBalance(fixture.memberId())).isZero();
 		assertThat(pointReservationStatus(fixture.paymentId())).isEqualTo("USED");
-		assertThat(pointUseLedgerCount(fixture.orderId())).isEqualTo(1);
+		assertThat(pointLedgerCount(fixture.orderId(), "USE")).isEqualTo(1);
+		assertThat(pointLedgerCount(fixture.orderId(), "EARN")).isZero();
+		assertThat(pointEarnLogAmount(fixture.paymentId())).isEqualTo(90L);
+		assertThat(pointEarnLogStatus(fixture.paymentId())).isEqualTo("PENDING");
+		assertThat(soldQuantity(fixture.productId())).isEqualTo(1);
+		assertThat(reservedQuantity(fixture.productId())).isZero();
 	}
 
 	@Test
@@ -54,7 +59,7 @@ class PaymentTimeoutStateServiceTest extends ExpirationTestSupport {
 		Fixture fixture = seed("PAID");
 
 		assertThatThrownBy(() -> stateService.markPaidIfStillTimeoutUnknown(
-				fixture.paymentId(), fixture.orderId(), fixture.orderNumber()))
+				fixture.paymentId(), fixture.orderId(), fixture.orderNumber(), fixture.amount(), fixture.memberId()))
 				.isInstanceOf(IllegalStateException.class);
 
 		assertThat(statusOf("payment", fixture.paymentId())).isEqualTo("TIMEOUT_UNKNOWN");
@@ -63,6 +68,9 @@ class PaymentTimeoutStateServiceTest extends ExpirationTestSupport {
 		assertThat(pointBalance(fixture.memberId())).isEqualTo(3_000L);
 		assertThat(reservedPointBalance(fixture.memberId())).isEqualTo(1_000L);
 		assertThat(pointReservationStatus(fixture.paymentId())).isEqualTo("RESERVED");
+		assertThat(soldQuantity(fixture.productId())).isZero();
+		assertThat(reservedQuantity(fixture.productId())).isEqualTo(1);
+		assertThat(pointEarnLogCount(fixture.paymentId())).isZero();
 	}
 
 	@Test
@@ -92,10 +100,11 @@ class PaymentTimeoutStateServiceTest extends ExpirationTestSupport {
 		jdbcTemplate.update("INSERT INTO stock (product_id, total_quantity, reserved_quantity, sold_quantity, created_at, updated_at) VALUES (?, 100, 1, 0, NOW(6), NOW(6))", productId);
 		jdbcTemplate.update("INSERT INTO orders (order_number, member_id, total_amount, status, idempotency_key, created_at, updated_at) VALUES (?, ?, 10000, ?, ?, NOW(6), NOW(6))", "ORDER-" + suffix, memberId, orderStatus, "IDEM-" + suffix);
 		Long orderId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
+		jdbcTemplate.update("INSERT INTO order_item (order_id, product_id, quantity, unit_price, created_at, updated_at) VALUES (?, ?, 1, 10000, NOW(6), NOW(6))", orderId, productId);
 		jdbcTemplate.update("INSERT INTO payment (order_id, payment_method, pg_provider, pg_transaction_id, idempotency_key, amount, used_point_amount, status, created_at, updated_at) VALUES (?, 'CARD', 'mock-pg', ?, ?, 9000, 1000, 'TIMEOUT_UNKNOWN', NOW(6), NOW(6))", orderId, "MOCK-" + suffix, "IDEM-PAY-" + suffix);
 		Long paymentId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 		jdbcTemplate.update("INSERT INTO point_reservation (payment_id, member_id, amount, status, created_at, updated_at) VALUES (?, ?, 1000, 'RESERVED', NOW(6), NOW(6))", paymentId, memberId);
-		return new Fixture(orderId, paymentId, memberId, "ORDER-" + suffix);
+		return new Fixture(orderId, paymentId, memberId, "ORDER-" + suffix, 9000L, productId);
 	}
 
 	private String statusOf(String table, long id) {
@@ -122,10 +131,35 @@ class PaymentTimeoutStateServiceTest extends ExpirationTestSupport {
 				"SELECT status FROM point_reservation WHERE payment_id = ?", String.class, paymentId);
 	}
 
-	private int pointUseLedgerCount(long orderId) {
+	private int pointLedgerCount(long orderId, String type) {
 		return jdbcTemplate.queryForObject(
-				"SELECT COUNT(*) FROM point_ledger WHERE order_id = ? AND type = 'USE'", Integer.class, orderId);
+				"SELECT COUNT(*) FROM point_ledger WHERE order_id = ? AND type = ?", Integer.class, orderId, type);
 	}
 
-	private record Fixture(long orderId, long paymentId, long memberId, String orderNumber) { }
+	private int soldQuantity(long productId) {
+		return jdbcTemplate.queryForObject(
+				"SELECT sold_quantity FROM stock WHERE product_id = ?", Integer.class, productId);
+	}
+
+	private int reservedQuantity(long productId) {
+		return jdbcTemplate.queryForObject(
+				"SELECT reserved_quantity FROM stock WHERE product_id = ?", Integer.class, productId);
+	}
+
+	private int pointEarnLogCount(long paymentId) {
+		return jdbcTemplate.queryForObject(
+				"SELECT COUNT(*) FROM point_earn_log WHERE payment_id = ?", Integer.class, paymentId);
+	}
+
+	private Long pointEarnLogAmount(long paymentId) {
+		return jdbcTemplate.queryForObject(
+				"SELECT amount FROM point_earn_log WHERE payment_id = ?", Long.class, paymentId);
+	}
+
+	private String pointEarnLogStatus(long paymentId) {
+		return jdbcTemplate.queryForObject(
+				"SELECT status FROM point_earn_log WHERE payment_id = ?", String.class, paymentId);
+	}
+
+	private record Fixture(long orderId, long paymentId, long memberId, String orderNumber, long amount, long productId) { }
 }

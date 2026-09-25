@@ -3,7 +3,7 @@
 <mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.PaymentTimeoutReconciliationMapper">
 
     <select id="findCandidates" resultType="pocketpaystore.pocketpay_batch.job.paymenttimeoutreconciliation.dto.PaymentTimeoutCandidate">
-        SELECT p.id AS payment_id, p.order_id, o.order_number, p.pg_transaction_id, p.amount
+        SELECT p.id AS payment_id, p.order_id, o.order_number, p.pg_transaction_id, p.amount, o.member_id
         FROM payment p
         JOIN orders o ON o.id = p.order_id
         WHERE p.status = 'TIMEOUT_UNKNOWN'
@@ -101,5 +101,25 @@
             (member_id, order_id, type, amount, balance_after, created_at, updated_at, is_deleted)
         VALUES
             (#{memberId}, #{orderId}, 'USE', -#{amount}, #{balanceAfter}, NOW(6), NOW(6), false)
+    </insert>
+
+    <select id="findOrderItem" resultType="pocketpaystore.pocketpay_batch.mapper.business.OrderItemRow">
+        SELECT product_id, quantity FROM order_item WHERE order_id = #{orderId}
+    </select>
+
+    <update id="confirmStock">
+        UPDATE stock
+        SET reserved_quantity = reserved_quantity - #{quantity},
+            sold_quantity = sold_quantity + #{quantity},
+            updated_at = NOW(6)
+        WHERE product_id = #{productId}
+          AND reserved_quantity &gt;= #{quantity}
+    </update>
+
+    <insert id="insertPointEarnLog">
+        INSERT INTO point_earn_log
+            (member_id, order_id, payment_id, amount, status, created_at, updated_at, is_deleted)
+        VALUES
+            (#{memberId}, #{orderId}, #{paymentId}, #{amount}, 'PENDING', NOW(6), NOW(6), false)
     </insert>
 </mapper>

@@ -36,4 +36,11 @@ public interface PaymentTimeoutReconciliationMapper {
 
 	int insertPointUseLedger(@Param("memberId") Long memberId, @Param("orderId") Long orderId,
 			@Param("amount") Long amount, @Param("balanceAfter") Long balanceAfter);
+
+	OrderItemRow findOrderItem(@Param("orderId") Long orderId);
+
+	int confirmStock(@Param("productId") Long productId, @Param("quantity") int quantity);
+
+	int insertPointEarnLog(@Param("memberId") Long memberId, @Param("orderId") Long orderId,
+			@Param("paymentId") Long paymentId, @Param("amount") Long amount);
 }

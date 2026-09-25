@@ -13,4 +13,5 @@ public class PaymentTimeoutCandidate {
 	private String orderNumber;
 	private String pgTransactionId;
 	private Long amount;
+	private Long memberId;
 }

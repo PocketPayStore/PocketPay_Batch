@@ -54,17 +54,20 @@ CREATE TABLE orders
     total_amount    BIGINT       NOT NULL,
     status          VARCHAR(20)  NOT NULL,
     idempotency_key VARCHAR(100) NOT NULL,
+    expires_at      DATETIME(6)  NULL,
     created_at      DATETIME(6)  NOT NULL,
     updated_at      DATETIME(6)  NOT NULL,
     is_deleted      BOOLEAN      NOT NULL DEFAULT FALSE,
     CONSTRAINT uk_orders_order_number UNIQUE (order_number),
-    CONSTRAINT uk_orders_idempotency_key UNIQUE (idempotency_key),
+    CONSTRAINT uk_orders_member_idempotency_key UNIQUE (member_id, idempotency_key),
     CONSTRAINT fk_orders_member FOREIGN KEY (member_id) REFERENCES member (id),
     CONSTRAINT ck_orders_status CHECK (status IN
         ('CREATED', 'STOCK_RESERVED', 'PAYMENT_PENDING', 'PAID', 'FAILED', 'CANCELED', 'PARTIAL_CANCELED', 'EXPIRED'))
 ) ENGINE = InnoDB;
 
-CREATE INDEX idx_orders_status_id ON orders (status, id);
+CREATE INDEX idx_orders_member_id ON orders (member_id);
+CREATE INDEX idx_orders_status_updated_at ON orders (status, updated_at);
+CREATE INDEX idx_orders_status_expires_at ON orders (status, expires_at);
 
 CREATE TABLE order_item
 (
@@ -91,6 +94,7 @@ CREATE TABLE payment
     amount            BIGINT       NOT NULL,
     used_point_amount BIGINT       NOT NULL DEFAULT 0,
     refundable_amount BIGINT       NOT NULL DEFAULT 0,
+    refundable_point_amount BIGINT NOT NULL DEFAULT 0,
     status            VARCHAR(20)  NOT NULL,
     failure_code      VARCHAR(50),
     failure_message   VARCHAR(500),
@@ -120,6 +124,22 @@ CREATE TABLE payment_status_history
 
 CREATE INDEX idx_payment_status_history_payment_id_id
     ON payment_status_history (payment_id, id);
+
+CREATE TABLE payment_cancel
+(
+    id                BIGINT AUTO_INCREMENT PRIMARY KEY,
+    payment_id        BIGINT      NOT NULL,
+    refund_id         BIGINT      NULL,
+    cancel_amount     BIGINT      NOT NULL,
+    reason            VARCHAR(200),
+    canceled_at       DATETIME(6) NOT NULL,
+    created_at        DATETIME(6) NOT NULL,
+    updated_at        DATETIME(6) NOT NULL,
+    is_deleted        BOOLEAN     NOT NULL DEFAULT FALSE,
+    CONSTRAINT fk_payment_cancel_payment FOREIGN KEY (payment_id) REFERENCES payment (id)
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_payment_cancel_payment_id ON payment_cancel (payment_id);
 
 CREATE TABLE point_balance
 (
@@ -163,8 +183,25 @@ CREATE TABLE point_ledger
     is_deleted    BOOLEAN     NOT NULL DEFAULT FALSE,
     CONSTRAINT fk_point_ledger_member FOREIGN KEY (member_id) REFERENCES member (id),
     CONSTRAINT fk_point_ledger_order FOREIGN KEY (order_id) REFERENCES orders (id),
-    CONSTRAINT ck_point_ledger_type CHECK (type IN ('EARN', 'USE', 'CANCEL_RESTORE'))
+    CONSTRAINT ck_point_ledger_type CHECK (type IN ('EARN', 'USE', 'CANCEL_RESTORE', 'EARN_REVERSAL'))
 ) ENGINE = InnoDB;
+
+CREATE TABLE outbox_event
+(
+    id             BIGINT AUTO_INCREMENT PRIMARY KEY,
+    aggregate_type VARCHAR(50)  NOT NULL,
+    aggregate_id   BIGINT       NOT NULL,
+    event_type     VARCHAR(100) NOT NULL,
+    payload        JSON         NOT NULL,
+    status         VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
+    retry_count    INT          NOT NULL DEFAULT 0,
+    published_at   DATETIME(6),
+    created_at     DATETIME(6)  NOT NULL,
+    updated_at     DATETIME(6)  NOT NULL,
+    is_deleted     BOOLEAN      NOT NULL DEFAULT FALSE
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_outbox_event_status_id ON outbox_event (status, id);
 
 CREATE TABLE payment_alert_log
 (
@@ -181,6 +218,25 @@ CREATE TABLE payment_alert_log
     updated_at  DATETIME(6)  NOT NULL,
     is_deleted  BOOLEAN      NOT NULL DEFAULT FALSE
 ) ENGINE = InnoDB;
+
+CREATE TABLE point_earn_log
+(
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    member_id   BIGINT      NOT NULL,
+    order_id    BIGINT      NOT NULL,
+    payment_id  BIGINT      NOT NULL,
+    amount      BIGINT      NOT NULL,
+    reversed_amount BIGINT  NOT NULL DEFAULT 0,
+    status      VARCHAR(20) NOT NULL DEFAULT 'PENDING',
+    resolved_at DATETIME(6) NULL,
+    created_at  DATETIME(6) NOT NULL,
+    updated_at  DATETIME(6) NOT NULL,
+    is_deleted  BOOLEAN     NOT NULL DEFAULT FALSE
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_point_earn_log_order_id ON point_earn_log (order_id);
+CREATE INDEX idx_point_earn_log_payment_id ON point_earn_log (payment_id);
+CREATE INDEX idx_point_earn_log_status_id ON point_earn_log (status, id);
 
 CREATE TABLE settlement
 (

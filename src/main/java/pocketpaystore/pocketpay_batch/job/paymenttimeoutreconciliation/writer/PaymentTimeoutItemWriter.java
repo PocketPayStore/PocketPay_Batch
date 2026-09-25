@@ -8,14 +8,14 @@ import org.springframework.web.client.HttpClientErrorException;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
-import pocketpaystore.pocketpay_batch.job.paymenttimeoutreconciliation.dto.MockPgTransactionResponse;
 import pocketpaystore.pocketpay_batch.job.paymenttimeoutreconciliation.dto.PaymentTimeoutCandidate;
+import pocketpaystore.pocketpay_batch.job.paymenttimeoutreconciliation.dto.TossPaymentResponse;
 
 @Slf4j
 @Component
 @RequiredArgsConstructor
 public class PaymentTimeoutItemWriter implements ItemWriter<PaymentTimeoutCandidate> {
-	private final MockPgClient mockPgClient;
+	private final TossPgClient tossPgClient;
 	private final PaymentTimeoutStateService stateService;
 
 	@Override
@@ -25,10 +25,10 @@ public class PaymentTimeoutItemWriter implements ItemWriter<PaymentTimeoutCandid
 
 	private void reconcile(PaymentTimeoutCandidate payment) {
 		try {
-			MockPgTransactionResponse response = mockPgClient.getTransaction(payment.getPgTransactionId());
-			if ("APPROVED".equals(response.getStatus())) {
-				if (stateService.markPaidIfStillTimeoutUnknown(
-						payment.getPaymentId(), payment.getOrderId(), payment.getOrderNumber())) {
+			TossPaymentResponse response = tossPgClient.getPayment(payment.getPgTransactionId());
+			if ("DONE".equals(response.getStatus())) {
+				if (stateService.markPaidIfStillTimeoutUnknown(payment.getPaymentId(), payment.getOrderId(),
+						payment.getOrderNumber(), payment.getAmount(), payment.getMemberId())) {
 					log.warn("[PaymentTimeout] PG 승인 확인 후 결제 완료 정정: orderId={}, paymentId={}", payment.getOrderId(), payment.getPaymentId());
 				}
 			} else if (isDefinitiveFailure(response.getStatus())
@@ -44,6 +44,6 @@ public class PaymentTimeoutItemWriter implements ItemWriter<PaymentTimeoutCandid
 	}
 
 	private boolean isDefinitiveFailure(String status) {
-		return "FAILED".equals(status) || "DECLINED".equals(status) || "CANCELED".equals(status);
+		return "ABORTED".equals(status) || "EXPIRED".equals(status) || "CANCELED".equals(status);
 	}
 }

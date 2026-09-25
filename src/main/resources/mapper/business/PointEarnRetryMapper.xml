@@ -1,0 +1,58 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.PointEarnRetryMapper">
+
+    <select id="findPendingPointEarns" resultType="pocketpaystore.pocketpay_batch.job.pointearnretry.dto.PointEarnCandidate">
+        SELECT id, member_id, order_id, payment_id, amount
+        FROM point_earn_log
+        WHERE status IN ('PENDING', 'FAILED')
+          AND id &gt; #{lastId}
+        ORDER BY id ASC
+        LIMIT #{chunkSize}
+    </select>
+
+    <update id="claim">
+        UPDATE point_earn_log
+        SET status = 'PROCESSING', updated_at = NOW(6)
+        WHERE id = #{id}
+          AND status IN ('PENDING', 'FAILED')
+    </update>
+
+    <select id="findRemainingAmount" resultType="java.lang.Long">
+        SELECT amount - reversed_amount
+        FROM point_earn_log
+        WHERE id = #{id}
+        FOR UPDATE
+    </select>
+
+    <select id="findPointBalanceForUpdate" resultType="java.lang.Long">
+        SELECT balance
+        FROM point_balance
+        WHERE member_id = #{memberId}
+        FOR UPDATE
+    </select>
+
+    <update id="updatePointBalanceForEarn">
+        UPDATE point_balance
+        SET balance = #{balance}, updated_at = NOW(6)
+        WHERE member_id = #{memberId}
+    </update>
+
+    <insert id="insertEarnLedger">
+        INSERT INTO point_ledger (member_id, order_id, type, amount, balance_after, created_at, updated_at)
+        VALUES (#{memberId}, #{orderId}, 'EARN', #{amount}, #{balanceAfter}, NOW(6), NOW(6))
+    </insert>
+
+    <update id="markResolved">
+        UPDATE point_earn_log
+        SET status = 'RESOLVED', resolved_at = NOW(6), updated_at = NOW(6)
+        WHERE id = #{id}
+    </update>
+
+    <update id="markFailed">
+        UPDATE point_earn_log
+        SET status = 'FAILED', updated_at = NOW(6)
+        WHERE id = #{id}
+    </update>
+
+</mapper>

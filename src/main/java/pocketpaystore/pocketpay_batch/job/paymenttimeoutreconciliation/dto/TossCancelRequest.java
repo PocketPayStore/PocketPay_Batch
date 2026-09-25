@@ -1,7 +1,5 @@
 package pocketpaystore.pocketpay_batch.job.paymenttimeoutreconciliation.dto;
 
-import java.time.LocalDateTime;
-
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
@@ -9,8 +7,7 @@ import lombok.NoArgsConstructor;
 @Getter
 @NoArgsConstructor
 @AllArgsConstructor
-public class MockPgTransactionResponse {
-	private String pgTransactionId;
-	private String status;
-	private LocalDateTime approvedAt;
+public class TossCancelRequest {
+	private String cancelReason;
+	private Long cancelAmount;
 }

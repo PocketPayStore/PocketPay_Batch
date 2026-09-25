@@ -1,6 +1,7 @@
 package pocketpaystore.pocketpay_batch.job.paymenttimeoutreconciliation.event;
 
 import org.redisson.api.RedissonClient;
+import org.redisson.client.codec.StringCodec;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.event.TransactionPhase;
@@ -23,7 +24,7 @@ public class RedisPaymentStatusEventListener {
 	@TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
 	public void publish(PaymentStatusChangedEvent event) {
 		try {
-			redissonClient.getTopic(channel).publish(objectMapper.writeValueAsString(event));
+			redissonClient.getTopic(channel, StringCodec.INSTANCE).publish(objectMapper.writeValueAsString(event));
 		} catch (Exception e) {
 			log.error("[PaymentEvent] Redis 발행 실패: eventId={}, paymentId={}",
 					event.getEventId(), event.getPaymentId(), e);

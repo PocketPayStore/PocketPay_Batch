@@ -13,9 +13,6 @@ import lombok.Getter;
 @Component
 public class OrderExpirationJobParameter {
 
-	@Value("#{jobParameters['thresholdMinutes']}")
-	private Long thresholdMinutes;
-
 	@Value("#{jobParameters['chunkSize']}")
 	private Long chunkSize;
 

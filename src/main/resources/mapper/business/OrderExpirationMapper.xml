@@ -6,25 +6,18 @@
         SELECT id
         FROM orders
         WHERE status = 'STOCK_RESERVED'
-          AND updated_at &lt; DATE_SUB(NOW(6), INTERVAL #{thresholdMinutes} MINUTE)
+          AND expires_at &lt; NOW(6)
           AND is_deleted = false
           AND id > #{lastId}
         <if test="startDate != null">
-          AND updated_at >= #{startDate}
+          AND expires_at >= #{startDate}
         </if>
         <if test="endDate != null">
-          AND updated_at &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+          AND expires_at &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
         </if>
         ORDER BY id ASC
         LIMIT #{limit}
     </select>
-
-    <update id="markExpiredIfStillPending">
-        UPDATE orders
-        SET status = 'EXPIRED', updated_at = NOW(6)
-        WHERE id = #{orderId}
-          AND status = 'STOCK_RESERVED'
-    </update>
 
     <update id="markExpiredIfStillStockReserved">
         UPDATE orders
@@ -46,13 +39,6 @@
         <foreach collection="orderIds" item="orderId" open="(" separator="," close=")">
             #{orderId}
         </foreach>
-    </select>
-
-    <select id="findOrderItem" resultType="pocketpaystore.pocketpay_batch.mapper.business.OrderItemRow">
-        SELECT product_id, quantity
-        FROM order_item
-        WHERE order_id = #{orderId}
-        LIMIT 1
     </select>
 
     <update id="releaseStock">

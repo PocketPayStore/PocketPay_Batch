@@ -7,7 +7,6 @@ import lombok.RequiredArgsConstructor;
 @RequiredArgsConstructor
 public enum OrderExpirationJobParameterKey {
 
-	THRESHOLD_MINUTES("thresholdMinutes"),
 	CHUNK_SIZE("chunkSize"),
 	START_DATE("startDate"),
 	END_DATE("endDate");

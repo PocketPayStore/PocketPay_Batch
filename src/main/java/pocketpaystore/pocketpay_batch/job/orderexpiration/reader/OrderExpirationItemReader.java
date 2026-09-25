@@ -39,10 +39,9 @@ public class OrderExpirationItemReader implements ItemReader<Long> {
 	}
 
 	private List<Long> fetchNextPage() {
-		long thresholdMinutes = jobParameter.getThresholdMinutes();
 		int chunkSize = jobParameter.getChunkSize().intValue();
 		List<Long> candidateIds = mapper.findExpirationCandidateIds(
-				thresholdMinutes, lastId, chunkSize, jobParameter.getStartDate(), jobParameter.getEndDate());
+				lastId, chunkSize, jobParameter.getStartDate(), jobParameter.getEndDate());
 		return candidateIds;
 	}
 

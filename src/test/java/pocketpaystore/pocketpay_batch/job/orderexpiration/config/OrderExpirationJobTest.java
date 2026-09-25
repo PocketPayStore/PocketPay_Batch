@@ -51,12 +51,11 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 		long staleOrder1 = seedOrder("STOCK_RESERVED", -20, 5, 2);
 		long staleOrder2 = seedOrder("STOCK_RESERVED", -30, 3, 1);
 		long staleStockReservedOrder = seedOrder("STOCK_RESERVED", -20, 4, 3);
-		long freshPendingOrder = seedOrder("PAYMENT_PENDING", -1, 5, 2);
-		long freshStockReservedOrder = seedOrder("STOCK_RESERVED", -1, 4, 3);
+		long freshPendingOrder = seedOrder("PAYMENT_PENDING", 10, 5, 2);
+		long freshStockReservedOrder = seedOrder("STOCK_RESERVED", 10, 4, 3);
 		long paidOrder = seedOrder("PAID", -60, 5, 2);
 
 		JobParametersBuilder parametersBuilder = jobLauncherTestUtils.getUniqueJobParametersBuilder()
-				.addLong("thresholdMinutes", 10L)
 				.addLong("chunkSize", 20L);
 		JobParameters jobParameters = parametersBuilder.toJobParameters();
 		JobExecution jobExecution = jobLauncherTestUtils.launchJob(jobParameters);
@@ -87,7 +86,6 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 		}
 
 		JobParametersBuilder parametersBuilder = jobLauncherTestUtils.getUniqueJobParametersBuilder()
-				.addLong("thresholdMinutes", 10L)
 				.addLong("chunkSize", 2L);
 		JobParameters jobParameters = parametersBuilder.toJobParameters();
 		JobExecution jobExecution = jobLauncherTestUtils.launchJob(jobParameters);
@@ -106,7 +104,6 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 		long outOfRangeOrder = seedOrder("STOCK_RESERVED", -10 * 24 * 60, 5, 2);
 
 		JobParametersBuilder parametersBuilder = jobLauncherTestUtils.getUniqueJobParametersBuilder()
-				.addLong("thresholdMinutes", 10L)
 				.addLong("chunkSize", 20L)
 				.addLocalDate("startDate", today.minusDays(3))
 				.addLocalDate("endDate", today.minusDays(1));
@@ -129,7 +126,7 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 				"SELECT reserved_quantity FROM stock WHERE product_id = ?", Integer.class, productId);
 	}
 
-	private long seedOrder(String status, int updatedAtOffsetMinutes, int reservedQuantity, int orderQuantity) {
+	private long seedOrder(String status, int expiresAtOffsetMinutes, int reservedQuantity, int orderQuantity) {
 		String suffix = UUID.randomUUID().toString();
 
 		jdbcTemplate.update(
@@ -153,9 +150,9 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 				productId, reservedQuantity);
 
 		jdbcTemplate.update(
-				"INSERT INTO orders (order_number, member_id, total_amount, status, idempotency_key, created_at, updated_at) "
-						+ "VALUES (?, ?, 10000, ?, ?, NOW(6), TIMESTAMPADD(MINUTE, ?, NOW(6)))",
-				"ORDER-" + suffix, memberId, status, "IDEM-" + suffix, updatedAtOffsetMinutes);
+				"INSERT INTO orders (order_number, member_id, total_amount, status, idempotency_key, expires_at, created_at, updated_at) "
+						+ "VALUES (?, ?, 10000, ?, ?, TIMESTAMPADD(MINUTE, ?, NOW(6)), NOW(6), NOW(6))",
+				"ORDER-" + suffix, memberId, status, "IDEM-" + suffix, expiresAtOffsetMinutes);
 		Long orderId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 
 		jdbcTemplate.update(

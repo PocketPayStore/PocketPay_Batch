@@ -16,7 +16,6 @@ public class OrderExpirationJobParametersValidator implements JobParametersValid
 			throw new InvalidJobParametersException(OrderExpirationValidationErrorMessage.PARAMETERS_NULL.getMessageFormat());
 		}
 
-		validatePositiveIntegerParameter(parameters, OrderExpirationJobParameterKey.THRESHOLD_MINUTES);
 		validatePositiveIntegerParameter(parameters, OrderExpirationJobParameterKey.CHUNK_SIZE);
 		validateDateRangeParameters(parameters);
 	}

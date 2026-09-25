@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.PaymentAlertRetryMapper">
+
+    <select id="findPendingAlerts" resultType="pocketpaystore.pocketpay_batch.job.paymentalertretry.dto.PaymentAlertCandidate">
+        SELECT id, alert_type, severity, payment_id, order_id, message
+        FROM payment_alert_log
+        WHERE status IN ('PENDING', 'FAILED')
+          AND id &gt; #{lastId}
+        ORDER BY id ASC
+        LIMIT #{chunkSize}
+    </select>
+
+    <update id="markResolved">
+        UPDATE payment_alert_log
+        SET status = 'RESOLVED', resolved_at = NOW(6), updated_at = NOW(6)
+        WHERE id = #{id}
+          AND status IN ('PENDING', 'PROCESSING', 'FAILED')
+    </update>
+
+    <update id="markFailed">
+        UPDATE payment_alert_log
+        SET status = 'FAILED', retry_count = retry_count + 1, updated_at = NOW(6)
+        WHERE id = #{id}
+    </update>
+
+</mapper>

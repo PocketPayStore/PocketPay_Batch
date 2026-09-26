@@ -125,6 +125,25 @@ CREATE TABLE payment_status_history
 CREATE INDEX idx_payment_status_history_payment_id_id
     ON payment_status_history (payment_id, id);
 
+CREATE TABLE refund
+(
+    id                   BIGINT AUTO_INCREMENT PRIMARY KEY,
+    payment_id           BIGINT       NOT NULL,
+    request_amount       BIGINT       NOT NULL,
+    status               VARCHAR(20)  NOT NULL,
+    pg_cancel_confirmed  BOOLEAN      NOT NULL DEFAULT FALSE,
+    idempotency_key      VARCHAR(100) NOT NULL,
+    requested_at         DATETIME(6)  NOT NULL,
+    processed_at         DATETIME(6),
+    created_at           DATETIME(6)  NOT NULL,
+    updated_at           DATETIME(6)  NOT NULL,
+    is_deleted           BOOLEAN      NOT NULL DEFAULT FALSE,
+    CONSTRAINT uk_refund_idempotency_key UNIQUE (idempotency_key),
+    CONSTRAINT fk_refund_payment FOREIGN KEY (payment_id) REFERENCES payment (id)
+) ENGINE = InnoDB;
+
+CREATE INDEX idx_refund_payment_id ON refund (payment_id);
+
 CREATE TABLE payment_cancel
 (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY,

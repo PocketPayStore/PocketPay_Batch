@@ -3,12 +3,19 @@ package pocketpaystore.pocketpay_batch.job.orderexpiration.config;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 import javax.sql.DataSource;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.redisson.api.RLock;
+import org.redisson.api.RedissonClient;
 import org.springframework.batch.core.job.JobExecution;
 import org.springframework.batch.core.job.Job;
 import org.springframework.batch.core.job.parameters.JobParameters;
@@ -36,6 +43,9 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 	@Autowired
 	@Qualifier("businessDataSource")
 	private DataSource businessDataSource;
+
+	@Autowired
+	private RedissonClient redissonClient;
 
 	private JdbcTemplate jdbcTemplate;
 
@@ -113,6 +123,54 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 		assertThat(jobExecution.getExitStatus().getExitCode()).isEqualTo("COMPLETED");
 		assertThat(statusOf(inRangeOrder)).isEqualTo("EXPIRED");
 		assertThat(statusOf(outOfRangeOrder)).isEqualTo("STOCK_RESERVED");
+	}
+
+	@Test
+	@DisplayName("한 상품의 재고 락 획득이 실패해도, 같은 청크의 다른 상품 주문 만료는 도미노로 롤백되지 않는다")
+	void run_lockContentionOnOneProduct_doesNotRollBackOtherProductsInSameChunk() throws Exception {
+		long contendedOrder = seedOrder("STOCK_RESERVED", -20, 5, 2);
+		long freeOrder = seedOrder("STOCK_RESERVED", -20, 3, 1);
+		Long contendedProductId = productIdOf(contendedOrder);
+
+		// 배치와 다른 스레드에서 락을 잡아야 진짜 경쟁 상황이 된다. Redisson 락은 같은 스레드에서는 재진입이 허용되므로,
+		// 같은 스레드에서 tryLock을 두 번 부르면 경쟁 없이 그냥 통과해버린다.
+		ExecutorService holderThread = Executors.newSingleThreadExecutor();
+		CountDownLatch lockAcquired = new CountDownLatch(1);
+		CountDownLatch releaseSignal = new CountDownLatch(1);
+		Future<?> holderFuture = holderThread.submit(() -> {
+			RLock externalLock = redissonClient.getLock("lock:stock:" + contendedProductId);
+			externalLock.lock();
+			lockAcquired.countDown();
+			try {
+				releaseSignal.await();
+			} catch (InterruptedException e) {
+				Thread.currentThread().interrupt();
+			} finally {
+				externalLock.unlock();
+			}
+		});
+
+		try {
+			assertThat(lockAcquired.await(5, TimeUnit.SECONDS)).isTrue();
+
+			JobParametersBuilder parametersBuilder = jobLauncherTestUtils.getUniqueJobParametersBuilder()
+					.addLong("chunkSize", 20L);
+			JobExecution jobExecution = jobLauncherTestUtils.launchJob(parametersBuilder.toJobParameters());
+
+			assertThat(jobExecution.getExitStatus().getExitCode()).isEqualTo("COMPLETED");
+			assertThat(statusOf(contendedOrder)).isEqualTo("STOCK_RESERVED");
+			assertThat(reservedQuantityOf(contendedOrder)).isEqualTo(5);
+			assertThat(statusOf(freeOrder)).isEqualTo("EXPIRED");
+			assertThat(reservedQuantityOf(freeOrder)).isEqualTo(2);
+		} finally {
+			releaseSignal.countDown();
+			holderFuture.get(5, TimeUnit.SECONDS);
+			holderThread.shutdown();
+		}
+	}
+
+	private Long productIdOf(long orderId) {
+		return jdbcTemplate.queryForObject("SELECT product_id FROM order_item WHERE order_id = ?", Long.class, orderId);
 	}
 
 	private String statusOf(long orderId) {

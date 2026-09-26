@@ -34,9 +34,14 @@ public class StockReleaseService {
 	@Value("${lock.default-lease-time-seconds:3}")
 	private long leaseTimeSeconds;
 
+	/**
+	 * 주문 하나 단위로 독립된 트랜잭션에서 처리한다. 여러 주문을 한 트랜잭션으로 묶으면, 그중 한 주문의 상품 락 획득이
+	 * 실패했을 때 같은 청크에 있던 다른(무관한) 상품의 주문 만료까지 전부 롤백되는 도미노 효과가 생긴다.
+	 */
 	@Transactional("businessTransactionManager")
-	public void expireAndRelease(List<Long> orderIds) {
-		if (orderIds.isEmpty() || mapper.markExpiredIfStillStockReserved(orderIds) == 0) {
+	public void expireAndReleaseOrder(Long orderId) {
+		List<Long> orderIds = List.of(orderId);
+		if (mapper.markExpiredIfStillStockReserved(orderIds) == 0) {
 			return;
 		}
 
@@ -45,36 +50,38 @@ public class StockReleaseService {
 			quantitiesByProduct.merge(item.getProductId(), item.getQuantity(), Integer::sum);
 		}
 		if (quantitiesByProduct.isEmpty()) {
-			throw new IllegalStateException("[Expiration] 만료 주문의 order_item이 없습니다: orderIds=" + orderIds);
+			throw new IllegalStateException("[Expiration] 만료 주문의 order_item이 없습니다: orderId=" + orderId);
 		}
 
 		List<RLock> acquiredLocks = new ArrayList<>();
 		try {
 			for (Long productId : quantitiesByProduct.keySet()) {
 				RLock lock = redissonClient.getLock("lock:stock:" + productId);
-				log.info("[배치] 재고 락 대기 시작: 상품 ID={}", productId);
+				log.info("[배치] 재고 락 대기 시작: 주문 ID={}, 상품 ID={}", orderId, productId);
 				if (!lock.tryLock(waitTimeSeconds, leaseTimeSeconds, TimeUnit.SECONDS)) {
-					throw new IllegalStateException("[Expiration] 재고 락 획득 실패: productId=" + productId);
+					throw new IllegalStateException(
+							"[Expiration] 재고 락 획득 실패: orderId=" + orderId + ", productId=" + productId);
 				}
-				log.info("[배치] 재고 락 획득: 상품 ID={}", productId);
+				log.info("[배치] 재고 락 획득: 주문 ID={}, 상품 ID={}", orderId, productId);
 				acquiredLocks.add(lock);
 			}
 			eventPublisher.publishEvent(new StockReleaseLocksAcquiredEvent(new ArrayList<>(quantitiesByProduct.keySet())));
 			for (Map.Entry<Long, Integer> entry : quantitiesByProduct.entrySet()) {
 				if (mapper.releaseStock(entry.getKey(), entry.getValue()) == 0) {
-					throw new IllegalStateException("[Expiration] 재고 원복 UPDATE 0건: productId=" + entry.getKey());
+					throw new IllegalStateException(
+							"[Expiration] 재고 원복 UPDATE 0건: orderId=" + orderId + ", productId=" + entry.getKey());
 				}
-				log.info("[배치] 예약 재고 복구 완료: 상품 ID={}, 복구 수량={}", entry.getKey(), entry.getValue());
+				log.info("[배치] 예약 재고 복구 완료: 주문 ID={}, 상품 ID={}, 복구 수량={}", orderId, entry.getKey(), entry.getValue());
 			}
 		} catch (InterruptedException e) {
 			Thread.currentThread().interrupt();
-			throw new IllegalStateException("[Expiration] 재고 락 대기 중 인터럽트", e);
+			throw new IllegalStateException("[Expiration] 재고 락 대기 중 인터럽트: orderId=" + orderId, e);
 		} finally {
 			for (int i = acquiredLocks.size() - 1; i >= 0; i--) {
 				RLock lock = acquiredLocks.get(i);
 				if (lock.isHeldByCurrentThread()) {
 					lock.unlock();
-					log.info("[배치] 재고 락 해제: 상품 ID={}", quantitiesByProduct.keySet().toArray()[i]);
+					log.info("[배치] 재고 락 해제: 주문 ID={}, 상품 ID={}", orderId, quantitiesByProduct.keySet().toArray()[i]);
 				}
 			}
 		}

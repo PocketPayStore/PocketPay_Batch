@@ -76,8 +76,8 @@ class SettlementCreationStateServiceTest extends ExpirationTestSupport {
 		jdbcTemplate.update("INSERT INTO orders (order_number, member_id, total_amount, status, idempotency_key, created_at, updated_at) VALUES (?, ?, ?, 'PAID', ?, NOW(6), NOW(6))", "ORDER-" + suffix, memberId, amount, "IDEM-" + suffix);
 		Long orderId = jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 		jdbcTemplate.update("INSERT INTO order_item (order_id, product_id, quantity, unit_price, created_at, updated_at) VALUES (?, ?, 1, ?, NOW(6), NOW(6))", orderId, productId, amount);
-		jdbcTemplate.update("INSERT INTO payment (order_id, payment_method, pg_provider, pg_transaction_id, idempotency_key, amount, status, created_at, updated_at) VALUES (?, 'CARD', 'mock-pg', ?, ?, ?, 'DONE', NOW(6), NOW(6))",
-				orderId, "MOCK-" + suffix, "IDEM-PAY-" + suffix, amount);
+		jdbcTemplate.update("INSERT INTO payment (order_id, payment_method, pg_provider, pg_transaction_id, idempotency_key, amount, refundable_amount, status, created_at, updated_at) VALUES (?, 'CARD', 'mock-pg', ?, ?, ?, ?, 'DONE', NOW(6), NOW(6))",
+				orderId, "MOCK-" + suffix, "IDEM-PAY-" + suffix, amount, amount);
 		return jdbcTemplate.queryForObject("SELECT LAST_INSERT_ID()", Long.class);
 	}
 

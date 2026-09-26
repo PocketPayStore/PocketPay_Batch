@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "https://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.SettlementRecalculationMapper">
+
+    <!--
+        정산 생성 이후 환불이 들어와 payment.refundable_amount가 줄었는데도, 이미 만들어진 settlement 행의
+        amount는 그 옛 값 그대로 남아있는 경우를 찾는다. 아직 가맹점에 지급 확정(SETTLED)되지 않은 PENDING
+        건만 대상으로 한다 — 이미 확정된 정산을 사후에 고치는 것은 별도의 조정 처리가 필요한 문제라 범위 밖이다.
+    -->
+    <select id="findStaleCandidates" resultType="pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.dto.SettlementRecalculationCandidate">
+        SELECT s.id AS settlementId,
+               s.payment_id AS paymentId,
+               p.refundable_amount AS newAmount,
+               ROUND(p.refundable_amount * #{pgFeeRate}) AS newPgFeeAmount,
+               ROUND(p.refundable_amount * #{platformFeeRate}) AS newPlatformFeeAmount,
+               p.refundable_amount - ROUND(p.refundable_amount * #{pgFeeRate}) - ROUND(p.refundable_amount * #{platformFeeRate}) AS newNetAmount
+        FROM settlement s
+        JOIN payment p ON p.id = s.payment_id
+        WHERE s.status = 'PENDING'
+          AND s.is_deleted = false
+          AND s.amount &lt;&gt; p.refundable_amount
+          AND s.id &gt; #{lastId}
+        ORDER BY s.id ASC
+        LIMIT #{chunkSize}
+    </select>
+
+    <update id="recalculate">
+        UPDATE settlement
+        SET amount = #{candidate.newAmount},
+            pg_fee_amount = #{candidate.newPgFeeAmount},
+            platform_fee_amount = #{candidate.newPlatformFeeAmount},
+            net_amount = #{candidate.newNetAmount},
+            updated_at = NOW(6)
+        WHERE id = #{candidate.settlementId}
+          AND status = 'PENDING'
+    </update>
+
+</mapper>

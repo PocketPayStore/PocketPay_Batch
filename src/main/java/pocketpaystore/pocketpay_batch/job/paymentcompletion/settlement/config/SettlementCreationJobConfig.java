@@ -13,9 +13,12 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.transaction.PlatformTransactionManager;
 
 import pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.dto.SettlementCreationCandidate;
+import pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.dto.SettlementRecalculationCandidate;
 import pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.reader.SettlementCreationItemReader;
+import pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.reader.SettlementRecalculationItemReader;
 import pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.validator.SettlementCreationJobParametersValidator;
 import pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.writer.SettlementCreationItemWriter;
+import pocketpaystore.pocketpay_batch.job.paymentcompletion.settlement.writer.SettlementRecalculationItemWriter;
 
 @Configuration
 public class SettlementCreationJobConfig {
@@ -23,23 +26,31 @@ public class SettlementCreationJobConfig {
 	private final JobRepository jobRepository;
 	private final PlatformTransactionManager batchTransactionManager;
 	private final SettlementCreationItemWriter writer;
+	private final SettlementRecalculationItemWriter recalculationWriter;
 	private final SettlementCreationJobParametersValidator validator;
 
 	public SettlementCreationJobConfig(JobRepository jobRepository,
 			@Qualifier("batchTransactionManager") PlatformTransactionManager batchTransactionManager,
 			SettlementCreationItemWriter writer,
+			SettlementRecalculationItemWriter recalculationWriter,
 			SettlementCreationJobParametersValidator validator) {
 		this.jobRepository = jobRepository;
 		this.batchTransactionManager = batchTransactionManager;
 		this.writer = writer;
+		this.recalculationWriter = recalculationWriter;
 		this.validator = validator;
 	}
 
+	/**
+	 * 정산 생성(신규 payment) 후, 그사이 refundable_amount가 바뀐(=환불이 들어온) 기존 PENDING
+	 * 정산을 재계산하는 스텝을 이어서 돈다. 정산 생성 시점 이후 환불되는 경우(11-4)를 이 두 번째 스텝이 커버한다.
+	 */
 	@Bean
-	public Job settlementCreationJob(Step settlementCreationStep) {
+	public Job settlementCreationJob(Step settlementCreationStep, Step settlementRecalculationStep) {
 		return new JobBuilder("settlementCreationJob", jobRepository)
 				.validator(validator)
 				.start(settlementCreationStep)
+				.next(settlementRecalculationStep)
 				.build();
 	}
 
@@ -52,6 +63,18 @@ public class SettlementCreationJobConfig {
 				.transactionManager(batchTransactionManager)
 				.reader(reader)
 				.writer(writer)
+				.build();
+	}
+
+	@Bean
+	@JobScope
+	public Step settlementRecalculationStep(@Value("#{jobParameters['chunkSize']}") Long chunkSize,
+			SettlementRecalculationItemReader reader) {
+		return new StepBuilder("settlementRecalculationStep", jobRepository)
+				.<SettlementRecalculationCandidate, SettlementRecalculationCandidate>chunk(chunkSize.intValue())
+				.transactionManager(batchTransactionManager)
+				.reader(reader)
+				.writer(recalculationWriter)
 				.build();
 	}
 }

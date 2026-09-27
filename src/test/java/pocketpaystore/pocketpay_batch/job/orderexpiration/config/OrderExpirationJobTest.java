@@ -132,8 +132,6 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 		long freeOrder = seedOrder("STOCK_RESERVED", -20, 3, 1);
 		Long contendedProductId = productIdOf(contendedOrder);
 
-		// 배치와 다른 스레드에서 락을 잡아야 진짜 경쟁 상황이 된다. Redisson 락은 같은 스레드에서는 재진입이 허용되므로,
-		// 같은 스레드에서 tryLock을 두 번 부르면 경쟁 없이 그냥 통과해버린다.
 		ExecutorService holderThread = Executors.newSingleThreadExecutor();
 		CountDownLatch lockAcquired = new CountDownLatch(1);
 		CountDownLatch releaseSignal = new CountDownLatch(1);

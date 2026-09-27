@@ -34,10 +34,6 @@ public class StockReleaseService {
 	@Value("${lock.default-lease-time-seconds:3}")
 	private long leaseTimeSeconds;
 
-	/**
-	 * 주문 하나 단위로 독립된 트랜잭션에서 처리한다. 여러 주문을 한 트랜잭션으로 묶으면, 그중 한 주문의 상품 락 획득이
-	 * 실패했을 때 같은 청크에 있던 다른(무관한) 상품의 주문 만료까지 전부 롤백되는 도미노 효과가 생긴다.
-	 */
 	@Transactional("businessTransactionManager")
 	public void expireAndReleaseOrder(Long orderId) {
 		List<Long> orderIds = List.of(orderId);

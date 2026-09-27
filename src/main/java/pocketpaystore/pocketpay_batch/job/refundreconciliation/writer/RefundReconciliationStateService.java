@@ -18,11 +18,6 @@ public class RefundReconciliationStateService {
 
 	private final RefundReconciliationMapper mapper;
 
-	/**
-	 * PG 취소 성공 여부는 트랜잭션 밖(HTTP 호출)에서 이미 판정된 뒤 넘어온다. PROCESSING에 멈춰있던 환불은
-	 * PG 취소 성공 여부와 무관하게 로컬 완료 처리(감사 기록 + 상태 전환)까지 마친다 — Core의 doRefund()도
-	 * PG 취소가 best-effort라 실패해도 로컬 완료는 그대로 진행하는 것과 동일한 정책이다.
-	 */
 	@Transactional("businessTransactionManager")
 	public void applyReconciliation(RefundReconciliationCandidate candidate, boolean pgCancelSucceeded) {
 		if ("PROCESSING".equals(candidate.getStatus())

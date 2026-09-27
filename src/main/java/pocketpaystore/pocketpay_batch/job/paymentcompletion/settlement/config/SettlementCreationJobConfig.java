@@ -41,10 +41,6 @@ public class SettlementCreationJobConfig {
 		this.validator = validator;
 	}
 
-	/**
-	 * 정산 생성(신규 payment) 후, 그사이 refundable_amount가 바뀐(=환불이 들어온) 기존 PENDING
-	 * 정산을 재계산하는 스텝을 이어서 돈다. 정산 생성 시점 이후 환불되는 경우(11-4)를 이 두 번째 스텝이 커버한다.
-	 */
 	@Bean
 	public Job settlementCreationJob(Step settlementCreationStep, Step settlementRecalculationStep) {
 		return new JobBuilder("settlementCreationJob", jobRepository)

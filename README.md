@@ -6,11 +6,11 @@ PocketPay의 비동기 보정과 정산을 담당하는 Spring Batch 애플리�
 
 | Job | 역할 | 주요 파라미터 |
 |---|---|---|
-| orderExpirationJob | 미결제 주문 만료와 예약 재고 해제 | chunkSize (선택: startDate, endDate) |
+| orderExpirationJob | 미결제 주문 만료와 예약 재고 해제(주문 하나당 독립 트랜잭션) | chunkSize (선택: startDate, endDate) |
 | paymentTimeoutReconciliationJob | TIMEOUT_UNKNOWN 결제를 PG에 재조회해 확정 — 포인트 사용 확정·재고 확정까지 Core와 동일한 원자적 트랜잭션으로 처리 | thresholdMinutes, chunkSize |
 | pointEarnRetryJob | 비동기 처리에 실패한 구매 포인트 적립 재시도 | chunkSize |
-| paymentAlertRetryJob | Slack 치명 알림 전송 재시도 | chunkSize |
-| settlementCreationJob | 완료 결제 중 미정산 건의 정산 생성 | chunkSize |
+| refundReconciliationJob | PG 취소 미확인 환불 재시도, `PROCESSING`에 멈춘 환불 완료 처리 | thresholdMinutes, chunkSize |
+| settlementCreationJob | 완료 결제 중 미정산 건의 정산 생성(생성 후 환불 반영해 `PENDING` 정산 재계산 포함) | chunkSize |
 | settlementJob | 기간별 판매자 정산 집계 | chunkSize, startDate, endDate |
 
 ~~~mermaid
@@ -19,7 +19,7 @@ flowchart TB
     B --> C[paymentTimeoutReconciliationJob]
     C --> D["결제·주문 상태 보정(포인트 사용 확정·재고 확정 포함)"]
     A -->|포인트 적립 비동기 실패| E[pointEarnRetryJob]
-    A -->|치명 알림 발행 실패| F[paymentAlertRetryJob]
+    A -->|환불 PG취소 미확인/완료 지연| F[refundReconciliationJob]
     A -->|완료 결제| G[settlementCreationJob]
     G --> H[미정산 결제 조회·정산 생성]
     H --> I[settlementJob]
@@ -30,7 +30,7 @@ flowchart TB
 
 ## 핵심 설계
 
-- **영역별 재시도**: 포인트 적립(`pointEarnRetryJob`)과 Slack 알림(`paymentAlertRetryJob`)은 각자 자신의 책임만 조건부 UPDATE(`PENDING`/`FAILED` → `PROCESSING`)로 선점해 재시도하고, 이미 처리된 건은 조건 불일치로 자연스럽게 건너뜁니다.
+- **영역별 재시도**: 포인트 적립(`pointEarnRetryJob`)과 환불 PG취소 확인(`refundReconciliationJob`)은 각자 자신의 책임만 조건부 UPDATE로 선점해 재시도하고, 이미 처리된 건은 조건 불일치로 자연스럽게 건너뜁니다.
 - **Core와 동일한 원자적 완료 로직**: `paymentTimeoutReconciliationJob`이 `TIMEOUT_UNKNOWN` 결제를 확정할 때 Core의 결제 완료 트랜잭션과 정확히 같은 일(포인트 사용 확정, 재고 확정, 주문 `PAID` 전환)을 하나의 MyBatis 트랜잭션으로 수행합니다 — 어느 경로로 완료되든 결과가 같습니다.
 - **Core-Batch 간 행 단위 조율**: 포인트 적립·환불 회수처럼 Core의 비동기 워커와 Batch 재시도 잡이 같은 행을 동시에 건드릴 수 있는 지점은 `FOR UPDATE` 락으로 조율해 이중 지급·유실 업데이트를 막습니다.
 - **정산 책임 분리**: Core 응답 경로와 분리해 완료 결제 중 미정산 건을 직접 조회하고 정산을 생성합니다.

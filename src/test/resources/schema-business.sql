@@ -138,7 +138,7 @@ CREATE TABLE refund
     created_at           DATETIME(6)  NOT NULL,
     updated_at           DATETIME(6)  NOT NULL,
     is_deleted           BOOLEAN      NOT NULL DEFAULT FALSE,
-    CONSTRAINT uk_refund_idempotency_key UNIQUE (idempotency_key),
+    CONSTRAINT uk_refund_payment_idempotency_key UNIQUE (payment_id, idempotency_key),
     CONSTRAINT fk_refund_payment FOREIGN KEY (payment_id) REFERENCES payment (id)
 ) ENGINE = InnoDB;
 
@@ -221,22 +221,6 @@ CREATE TABLE outbox_event
 ) ENGINE = InnoDB;
 
 CREATE INDEX idx_outbox_event_status_id ON outbox_event (status, id);
-
-CREATE TABLE payment_alert_log
-(
-    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
-    alert_type  VARCHAR(50)  NOT NULL,
-    severity    VARCHAR(20)  NOT NULL,
-    payment_id  BIGINT       NULL,
-    order_id    BIGINT       NULL,
-    message     VARCHAR(500) NOT NULL,
-    status      VARCHAR(20)  NOT NULL DEFAULT 'PENDING',
-    retry_count INT          NOT NULL DEFAULT 0,
-    resolved_at DATETIME(6)  NULL,
-    created_at  DATETIME(6)  NOT NULL,
-    updated_at  DATETIME(6)  NOT NULL,
-    is_deleted  BOOLEAN      NOT NULL DEFAULT FALSE
-) ENGINE = InnoDB;
 
 CREATE TABLE point_earn_log
 (

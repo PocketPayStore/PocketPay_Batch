@@ -27,12 +27,12 @@ public class PaymentTimeoutItemWriter implements ItemWriter<PaymentTimeoutCandid
 		try {
 			TossPaymentResponse response = tossPgClient.getPayment(payment.getPgTransactionId());
 			if ("DONE".equals(response.getStatus())) {
-				if (stateService.markPaidIfStillTimeoutUnknown(payment.getPaymentId(), payment.getOrderId(),
+				if (stateService.markPaidIfStillUnresolved(payment.getPaymentId(), payment.getOrderId(),
 						payment.getOrderNumber(), payment.getAmount(), payment.getMemberId())) {
 					log.warn("[PaymentTimeout] PG 승인 확인 후 결제 완료 정정: orderId={}, paymentId={}", payment.getOrderId(), payment.getPaymentId());
 				}
 			} else if (isDefinitiveFailure(response.getStatus())
-					&& stateService.markFailedIfStillTimeoutUnknown(
+					&& stateService.markFailedIfStillUnresolved(
 						payment.getPaymentId(), payment.getOrderId(), payment.getOrderNumber())) {
 				log.warn("[PaymentTimeout] PG 승인 실패 확인 후 결제 실패 정정: orderId={}, paymentId={}", payment.getOrderId(), payment.getPaymentId());
 			}

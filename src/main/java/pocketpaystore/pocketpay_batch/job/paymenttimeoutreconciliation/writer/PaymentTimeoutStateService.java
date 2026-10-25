@@ -30,7 +30,7 @@ public class PaymentTimeoutStateService {
 	private long waitTimeSeconds;
 
 	@Transactional("businessTransactionManager")
-	public boolean markPaidIfStillTimeoutUnknown(Long paymentId, Long orderId, String orderNumber, Long amount, Long memberId) {
+	public boolean markPaidIfStillUnresolved(Long paymentId, Long orderId, String orderNumber, Long amount, Long memberId) {
 		int paymentUpdated = mapper.markPaymentDone(paymentId);
 		if (paymentUpdated == 0) {
 			return false;
@@ -51,7 +51,7 @@ public class PaymentTimeoutStateService {
 	}
 
 	@Transactional("businessTransactionManager")
-	public boolean markFailedIfStillTimeoutUnknown(Long paymentId, Long orderId, String orderNumber) {
+	public boolean markFailedIfStillUnresolved(Long paymentId, Long orderId, String orderNumber) {
 		if (mapper.markPaymentFailed(paymentId) == 0) {
 			return false;
 		}

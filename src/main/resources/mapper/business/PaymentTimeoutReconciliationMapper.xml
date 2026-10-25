@@ -6,9 +6,11 @@
         SELECT p.id AS payment_id, p.order_id, o.order_number, p.pg_transaction_id, p.amount, o.member_id
         FROM payment p
         JOIN orders o ON o.id = p.order_id
-        WHERE p.status = 'TIMEOUT_UNKNOWN'
+        WHERE ((p.status = 'TIMEOUT_UNKNOWN'
+                AND p.updated_at &lt; DATE_SUB(NOW(6), INTERVAL #{thresholdMinutes} MINUTE))
+            OR (p.status = 'IN_PROGRESS'
+                AND p.updated_at &lt; DATE_SUB(NOW(6), INTERVAL #{inProgressThresholdMinutes} MINUTE)))
           AND o.status = 'PAYMENT_PENDING'
-          AND p.updated_at &lt; DATE_SUB(NOW(6), INTERVAL #{thresholdMinutes} MINUTE)
           AND p.id &gt; #{lastId}
           AND p.is_deleted = false
         ORDER BY p.id ASC
@@ -19,7 +21,7 @@
         UPDATE payment
         SET status = 'DONE', approved_at = NOW(6), refundable_amount = amount, updated_at = NOW(6)
         WHERE id = #{paymentId}
-          AND status = 'TIMEOUT_UNKNOWN'
+          AND status IN ('TIMEOUT_UNKNOWN', 'IN_PROGRESS')
     </update>
 
     <update id="markPaymentFailed">
@@ -27,7 +29,7 @@
         SET status = 'FAILED', failure_code = 'PG_RECONCILIATION_FAILED',
             failure_message = 'PG 대사 결과 승인 실패', updated_at = NOW(6)
         WHERE id = #{paymentId}
-          AND status = 'TIMEOUT_UNKNOWN'
+          AND status IN ('TIMEOUT_UNKNOWN', 'IN_PROGRESS')
     </update>
 
     <update id="markOrderPaid">

@@ -10,6 +10,7 @@ import pocketpaystore.pocketpay_batch.mapper.business.dto.PointReservationContex
 public interface PaymentTimeoutReconciliationMapper {
 
 	List<PaymentTimeoutCandidate> findCandidates(@Param("thresholdMinutes") long thresholdMinutes,
+			@Param("inProgressThresholdMinutes") long inProgressThresholdMinutes,
 			@Param("lastId") long lastId, @Param("limit") int limit);
 
 	int markPaymentDone(@Param("paymentId") Long paymentId);

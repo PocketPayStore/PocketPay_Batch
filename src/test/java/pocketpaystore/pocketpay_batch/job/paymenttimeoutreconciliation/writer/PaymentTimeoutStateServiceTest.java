@@ -37,7 +37,7 @@ class PaymentTimeoutStateServiceTest extends ExpirationTestSupport {
 	void marksPaymentAndOrderPaidTogether_whenBothAreStillEligible() {
 		Fixture fixture = seed("PAYMENT_PENDING");
 
-		assertThat(stateService.markPaidIfStillTimeoutUnknown(
+		assertThat(stateService.markPaidIfStillUnresolved(
 				fixture.paymentId(), fixture.orderId(), fixture.orderNumber(), fixture.amount(), fixture.memberId())).isTrue();
 
 		assertThat(statusOf("payment", fixture.paymentId())).isEqualTo("DONE");
@@ -58,7 +58,7 @@ class PaymentTimeoutStateServiceTest extends ExpirationTestSupport {
 	void rollsBackPaymentUpdate_whenOrderIsNoLongerPaymentPending() {
 		Fixture fixture = seed("PAID");
 
-		assertThatThrownBy(() -> stateService.markPaidIfStillTimeoutUnknown(
+		assertThatThrownBy(() -> stateService.markPaidIfStillUnresolved(
 				fixture.paymentId(), fixture.orderId(), fixture.orderNumber(), fixture.amount(), fixture.memberId()))
 				.isInstanceOf(IllegalStateException.class);
 
@@ -77,7 +77,7 @@ class PaymentTimeoutStateServiceTest extends ExpirationTestSupport {
 	void releasesPointReservation_whenPgFailureIsConfirmed() {
 		Fixture fixture = seed("PAYMENT_PENDING");
 
-		assertThat(stateService.markFailedIfStillTimeoutUnknown(
+		assertThat(stateService.markFailedIfStillUnresolved(
 				fixture.paymentId(), fixture.orderId(), fixture.orderNumber())).isTrue();
 
 		assertThat(statusOf("payment", fixture.paymentId())).isEqualTo("FAILED");

@@ -71,6 +71,26 @@ class PaymentTimeoutReconciliationJobTest extends ExpirationTestSupport {
 		assertThat(paymentStatus(paymentId)).isEqualTo("DONE");
 	}
 
+	@Test
+	@DisplayName("서버가 죽어 IN_PROGRESS로 남은 결제는 inProgressThresholdMinutes가 지나야 PG 재조회로 확정된다")
+	void run_reconcilesOnlyStaleInProgressPayment() throws Exception {
+		long staleInProgress = seed("IN_PROGRESS", "PAYMENT_PENDING", -60);
+		long freshInProgress = seed("IN_PROGRESS", "PAYMENT_PENDING", -5);
+		when(tossPgClient.getPayment(any()))
+				.thenReturn(new TossPaymentResponse("PG-TX-1", "ORDER-TEST", "DONE", LocalDateTime.now()));
+
+		JobParameters jobParameters = jobLauncherTestUtils.getUniqueJobParametersBuilder()
+				.addLong("thresholdMinutes", 10L)
+				.addLong("inProgressThresholdMinutes", 30L)
+				.addLong("chunkSize", 20L)
+				.toJobParameters();
+		JobExecution jobExecution = jobLauncherTestUtils.launchJob(jobParameters);
+
+		assertThat(jobExecution.getExitStatus().getExitCode()).isEqualTo("COMPLETED");
+		assertThat(paymentStatus(staleInProgress)).isEqualTo("DONE");
+		assertThat(paymentStatus(freshInProgress)).isEqualTo("IN_PROGRESS");
+	}
+
 	private long seed(String paymentStatus, String orderStatus, int updatedAtOffsetMinutes) {
 		String suffix = UUID.randomUUID().toString();
 		jdbcTemplate.update(

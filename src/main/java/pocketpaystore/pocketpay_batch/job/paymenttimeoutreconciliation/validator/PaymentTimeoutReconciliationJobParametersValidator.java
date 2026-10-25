@@ -15,6 +15,9 @@ public class PaymentTimeoutReconciliationJobParametersValidator implements JobPa
 		}
 		validatePositive(parameters, "thresholdMinutes");
 		validatePositive(parameters, "chunkSize");
+		if (parameters.getParameter("inProgressThresholdMinutes") != null) {
+			validatePositive(parameters, "inProgressThresholdMinutes");
+		}
 	}
 
 	private void validatePositive(JobParameters parameters, String key) throws InvalidJobParametersException {

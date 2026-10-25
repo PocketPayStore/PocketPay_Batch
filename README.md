@@ -7,7 +7,7 @@ PocketPay의 비동기 보정과 정산을 담당하는 Spring Batch 애플리�
 | Job | 역할 | 주요 파라미터 |
 |---|---|---|
 | orderExpirationJob | 미결제 주문 만료와 예약 재고 해제(주문 하나당 독립 트랜잭션) | chunkSize (선택: startDate, endDate) |
-| paymentTimeoutReconciliationJob | TIMEOUT_UNKNOWN 결제를 PG에 재조회해 확정 — 포인트 사용 확정·재고 확정까지 Core와 동일한 원자적 트랜잭션으로 처리 | thresholdMinutes, chunkSize |
+| paymentTimeoutReconciliationJob | TIMEOUT_UNKNOWN 결제와, 서버 중단으로 오래 IN_PROGRESS에 남은 결제를 PG에 재조회해 확정 — 포인트 사용 확정·재고 확정까지 Core와 동일한 원자적 트랜잭션으로 처리 | thresholdMinutes, chunkSize (선택: inProgressThresholdMinutes, 기본 30 — Core의 승인 요청 최대 소요 시간보다 길게) |
 | pointEarnRetryJob | 비동기 처리에 실패한 구매 포인트 적립 재시도 | chunkSize |
 | refundReconciliationJob | PG 취소 미확인 환불 재시도, `PROCESSING`에 멈춘 환불 완료 처리 | thresholdMinutes, chunkSize |
 | settlementCreationJob | 완료 결제 중 미정산 건의 정산 생성(생성 후 환불 반영해 `PENDING` 정산 재계산 포함) | chunkSize |

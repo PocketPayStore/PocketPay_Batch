@@ -17,6 +17,7 @@ public class PaymentTimeoutItemReader implements ItemReader<PaymentTimeoutCandid
 
 	private final PaymentTimeoutReconciliationMapper mapper;
 	private final long thresholdMinutes;
+	private final long inProgressThresholdMinutes;
 	private final int chunkSize;
 	private Iterator<PaymentTimeoutCandidate> iterator;
 	private long lastId;
@@ -25,13 +26,15 @@ public class PaymentTimeoutItemReader implements ItemReader<PaymentTimeoutCandid
 			PaymentTimeoutReconciliationJobParameter jobParameter) {
 		this.mapper = mapper;
 		this.thresholdMinutes = jobParameter.getThresholdMinutes();
+		this.inProgressThresholdMinutes = jobParameter.getInProgressThresholdMinutes();
 		this.chunkSize = jobParameter.getChunkSize().intValue();
 	}
 
 	@Override
 	public PaymentTimeoutCandidate read() {
 		if (iterator == null || !iterator.hasNext()) {
-			List<PaymentTimeoutCandidate> candidates = mapper.findCandidates(thresholdMinutes, lastId, chunkSize);
+			List<PaymentTimeoutCandidate> candidates = mapper.findCandidates(
+					thresholdMinutes, inProgressThresholdMinutes, lastId, chunkSize);
 			if (candidates.isEmpty()) return null;
 			lastId = candidates.get(candidates.size() - 1).getPaymentId();
 			iterator = candidates.iterator();

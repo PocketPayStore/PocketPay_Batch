@@ -13,6 +13,9 @@ public class PaymentTimeoutReconciliationJobParameter {
 	@Value("#{jobParameters['thresholdMinutes']}")
 	private Long thresholdMinutes;
 
+	@Value("#{jobParameters['inProgressThresholdMinutes'] ?: 30L}")
+	private Long inProgressThresholdMinutes;
+
 	@Value("#{jobParameters['chunkSize']}")
 	private Long chunkSize;
 }

@@ -78,6 +78,24 @@ class PointEarnRetryJobTest extends ExpirationTestSupport {
 		assertThat(balanceOf(memberId)).isEqualTo(1_000L);
 	}
 
+	@Test
+	@DisplayName("잔액 반영 뒤 원장 기록에서 실패하면 잔액까지 롤백되고 FAILED로 남아 이중 적립되지 않는다")
+	void run_failureAfterBalanceUpdate_rollsBackWholeEarn() throws Exception {
+		long memberId = seedMemberWithBalance(1_000L);
+		long missingOrderId = 999_999_999L;
+		long logId = seedPointEarnLog(memberId, missingOrderId, "PENDING");
+
+		JobParameters jobParameters = jobLauncherTestUtils.getUniqueJobParametersBuilder()
+				.addLong("chunkSize", 20L)
+				.toJobParameters();
+		JobExecution jobExecution = jobLauncherTestUtils.launchJob(jobParameters);
+
+		assertThat(jobExecution.getExitStatus().getExitCode()).isEqualTo("COMPLETED");
+		assertThat(statusOf(logId)).isEqualTo("FAILED");
+		assertThat(balanceOf(memberId)).isEqualTo(1_000L);
+		assertThat(earnLedgerCount(memberId, missingOrderId)).isZero();
+	}
+
 	private long seedMemberWithBalance(long balance) {
 		String suffix = UUID.randomUUID().toString();
 		jdbcTemplate.update(

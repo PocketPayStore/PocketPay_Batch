@@ -53,6 +53,7 @@
         UPDATE point_earn_log
         SET status = 'FAILED', updated_at = NOW(6)
         WHERE id = #{id}
+          AND status IN ('PENDING', 'FAILED')
     </update>
 
 </mapper>

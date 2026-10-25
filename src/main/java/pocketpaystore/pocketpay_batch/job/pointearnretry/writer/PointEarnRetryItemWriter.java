@@ -19,11 +19,26 @@ public class PointEarnRetryItemWriter implements ItemWriter<PointEarnCandidate> 
 	@Override
 	public void write(Chunk<? extends PointEarnCandidate> chunk) {
 		for (PointEarnCandidate candidate : chunk.getItems()) {
-			try {
-				stateService.retry(candidate);
-			} catch (Exception e) {
-				log.error("[PointEarnRetry] 적립 재시도 처리 중 예상치 못한 실패: id={}", candidate.getId(), e);
+			retry(candidate);
+		}
+	}
+
+	private void retry(PointEarnCandidate candidate) {
+		try {
+			if (!stateService.apply(candidate)) {
+				log.info("[PointEarnRetry] 이미 처리된 적립 건, 스킵: id={}", candidate.getId());
 			}
+		} catch (Exception e) {
+			log.error("[PointEarnRetry] 재시도 실패, 다음 실행에서 다시 시도: id={}", candidate.getId(), e);
+			markFailed(candidate.getId());
+		}
+	}
+
+	private void markFailed(long id) {
+		try {
+			stateService.markFailed(id);
+		} catch (Exception e) {
+			log.error("[PointEarnRetry] 실패 표시 중 예상치 못한 실패: id={}", id, e);
 		}
 	}
 }

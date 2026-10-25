@@ -3,30 +3,47 @@
 <mapper namespace="pocketpaystore.pocketpay_batch.mapper.business.OrderExpirationMapper">
 
     <select id="findExpirationCandidateIds" resultType="java.lang.Long">
-        SELECT id
-        FROM orders
-        WHERE status = 'STOCK_RESERVED'
-          AND expires_at &lt; NOW(6)
-          AND is_deleted = false
-          AND id > #{lastId}
+        SELECT o.id
+        FROM orders o
+        WHERE o.status IN ('STOCK_RESERVED', 'PAYMENT_PENDING')
+          AND o.expires_at &lt; NOW(6)
+          AND NOT EXISTS (
+              SELECT 1 FROM payment p
+              WHERE p.order_id = o.id
+                AND p.status &lt;&gt; 'FAILED'
+          )
+          AND o.is_deleted = false
+          AND o.id > #{lastId}
         <if test="startDate != null">
-          AND expires_at >= #{startDate}
+          AND o.expires_at >= #{startDate}
         </if>
         <if test="endDate != null">
-          AND expires_at &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
+          AND o.expires_at &lt; DATE_ADD(#{endDate}, INTERVAL 1 DAY)
         </if>
-        ORDER BY id ASC
+        ORDER BY o.id ASC
         LIMIT #{limit}
     </select>
 
-    <update id="markExpiredIfStillStockReserved">
+    <select id="findOrderStatusForUpdate" resultType="java.lang.String">
+        SELECT status
+        FROM orders
+        WHERE id = #{orderId}
+        FOR UPDATE
+    </select>
+
+    <select id="countUnfailedPaymentsForShare" resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM payment
+        WHERE order_id = #{orderId}
+          AND status &lt;&gt; 'FAILED'
+        FOR SHARE
+    </select>
+
+    <update id="markExpired">
         UPDATE orders
         SET status = 'EXPIRED', updated_at = NOW(6)
-        WHERE status = 'STOCK_RESERVED'
-          AND id IN
-        <foreach collection="orderIds" item="orderId" open="(" separator="," close=")">
-            #{orderId}
-        </foreach>
+        WHERE id = #{orderId}
+          AND status = #{expectedStatus}
     </update>
 
     <select id="findOrderItemsByExpiredOrderIds"

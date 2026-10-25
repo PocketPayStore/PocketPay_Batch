@@ -13,7 +13,11 @@ public interface OrderExpirationMapper {
 			@Param("startDate") LocalDate startDate,
 			@Param("endDate") LocalDate endDate);
 
-	int markExpiredIfStillStockReserved(@Param("orderIds") List<Long> orderIds);
+	String findOrderStatusForUpdate(@Param("orderId") Long orderId);
+
+	int countUnfailedPaymentsForShare(@Param("orderId") Long orderId);
+
+	int markExpired(@Param("orderId") Long orderId, @Param("expectedStatus") String expectedStatus);
 
 	List<OrderItemRow> findOrderItemsByExpiredOrderIds(@Param("orderIds") List<Long> orderIds);
 

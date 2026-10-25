@@ -126,10 +126,9 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 	}
 
 	@Test
-	@DisplayName("한 상품의 재고 락 획득이 실패해도, 같은 청크의 다른 상품 주문 만료는 도미노로 롤백되지 않는다")
-	void run_lockContentionOnOneProduct_doesNotRollBackOtherProductsInSameChunk() throws Exception {
+	@DisplayName("주문 요청이 상품 Redis 락을 잡고 있어도, 만료 배치는 락을 기다리지 않고 재고를 원복한다")
+	void run_doesNotWaitForStockRedisLock() throws Exception {
 		long contendedOrder = seedOrder("STOCK_RESERVED", -20, 5, 2);
-		long freeOrder = seedOrder("STOCK_RESERVED", -20, 3, 1);
 		Long contendedProductId = productIdOf(contendedOrder);
 
 		ExecutorService holderThread = Executors.newSingleThreadExecutor();
@@ -156,15 +155,53 @@ class OrderExpirationJobTest extends ExpirationTestSupport {
 			JobExecution jobExecution = jobLauncherTestUtils.launchJob(parametersBuilder.toJobParameters());
 
 			assertThat(jobExecution.getExitStatus().getExitCode()).isEqualTo("COMPLETED");
-			assertThat(statusOf(contendedOrder)).isEqualTo("STOCK_RESERVED");
-			assertThat(reservedQuantityOf(contendedOrder)).isEqualTo(5);
-			assertThat(statusOf(freeOrder)).isEqualTo("EXPIRED");
-			assertThat(reservedQuantityOf(freeOrder)).isEqualTo(2);
+			assertThat(statusOf(contendedOrder)).isEqualTo("EXPIRED");
+			assertThat(reservedQuantityOf(contendedOrder)).isEqualTo(3);
 		} finally {
 			releaseSignal.countDown();
 			holderFuture.get(5, TimeUnit.SECONDS);
 			holderThread.shutdown();
 		}
+	}
+
+	@Test
+	@DisplayName("결제가 모두 실패한 채 만료된 PAYMENT_PENDING 주문은 EXPIRED + 재고 원복되고, 진행 중인 결제가 있으면 그대로다")
+	void run_expiresPaymentPendingOrdersOnlyWhenAllPaymentsFailed() throws Exception {
+		long failedPaymentOrder = seedOrder("PAYMENT_PENDING", -20, 5, 2);
+		seedPayment(failedPaymentOrder, "FAILED");
+		long retriedThenFailedOrder = seedOrder("PAYMENT_PENDING", -20, 4, 1);
+		seedPayment(retriedThenFailedOrder, "FAILED");
+		seedPayment(retriedThenFailedOrder, "FAILED");
+		long inProgressOrder = seedOrder("PAYMENT_PENDING", -20, 5, 2);
+		seedPayment(inProgressOrder, "FAILED");
+		seedPayment(inProgressOrder, "IN_PROGRESS");
+		long timeoutUnknownOrder = seedOrder("PAYMENT_PENDING", -20, 5, 2);
+		seedPayment(timeoutUnknownOrder, "TIMEOUT_UNKNOWN");
+		long freshFailedPaymentOrder = seedOrder("PAYMENT_PENDING", 10, 5, 2);
+		seedPayment(freshFailedPaymentOrder, "FAILED");
+
+		JobParametersBuilder parametersBuilder = jobLauncherTestUtils.getUniqueJobParametersBuilder()
+				.addLong("chunkSize", 20L);
+		JobExecution jobExecution = jobLauncherTestUtils.launchJob(parametersBuilder.toJobParameters());
+
+		assertThat(jobExecution.getExitStatus().getExitCode()).isEqualTo("COMPLETED");
+		assertThat(statusOf(failedPaymentOrder)).isEqualTo("EXPIRED");
+		assertThat(reservedQuantityOf(failedPaymentOrder)).isEqualTo(3);
+		assertThat(statusOf(retriedThenFailedOrder)).isEqualTo("EXPIRED");
+		assertThat(reservedQuantityOf(retriedThenFailedOrder)).isEqualTo(3);
+		assertThat(statusOf(inProgressOrder)).isEqualTo("PAYMENT_PENDING");
+		assertThat(reservedQuantityOf(inProgressOrder)).isEqualTo(5);
+		assertThat(statusOf(timeoutUnknownOrder)).isEqualTo("PAYMENT_PENDING");
+		assertThat(reservedQuantityOf(timeoutUnknownOrder)).isEqualTo(5);
+		assertThat(statusOf(freshFailedPaymentOrder)).isEqualTo("PAYMENT_PENDING");
+		assertThat(reservedQuantityOf(freshFailedPaymentOrder)).isEqualTo(5);
+	}
+
+	private void seedPayment(long orderId, String status) {
+		jdbcTemplate.update(
+				"INSERT INTO payment (order_id, payment_method, pg_provider, pg_transaction_id, idempotency_key, amount, used_point_amount, status, created_at, updated_at) "
+						+ "VALUES (?, 'CARD', 'mock-pg', 'PG-TX', ?, 10000, 0, ?, NOW(6), NOW(6))",
+				orderId, "IDEM-PAY-" + UUID.randomUUID(), status);
 	}
 
 	private Long productIdOf(long orderId) {

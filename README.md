@@ -6,7 +6,7 @@ PocketPay의 비동기 보정과 정산을 담당하는 Spring Batch 애플리�
 
 | Job | 역할 | 주요 파라미터 |
 |---|---|---|
-| orderExpirationJob | 미결제 주문 만료와 예약 재고 해제(주문 하나당 독립 트랜잭션) | chunkSize (선택: startDate, endDate) |
+| orderExpirationJob | 미결제 주문(`STOCK_RESERVED`, 결제가 모두 실패한 `PAYMENT_PENDING`) 만료와 예약 재고 해제(주문 하나당 독립 트랜잭션) | chunkSize (선택: startDate, endDate) |
 | paymentTimeoutReconciliationJob | TIMEOUT_UNKNOWN 결제와, 서버 중단으로 오래 IN_PROGRESS에 남은 결제를 PG에 재조회해 확정 — 포인트 사용 확정·재고 확정까지 Core와 동일한 원자적 트랜잭션으로 처리 | thresholdMinutes, chunkSize (선택: inProgressThresholdMinutes, 기본 30 — Core의 승인 요청 최대 소요 시간보다 길게) |
 | pointEarnRetryJob | 비동기 처리에 실패한 구매 포인트 적립 재시도 | chunkSize |
 | refundReconciliationJob | PG 취소 미확인 환불 재시도, `PROCESSING`에 멈춘 환불 완료 처리 | thresholdMinutes, chunkSize |
@@ -36,7 +36,7 @@ flowchart TB
 - **정산 책임 분리**: Core 응답 경로와 분리해 완료 결제 중 미정산 건을 직접 조회하고 정산을 생성합니다.
 - **조인·집계 조회**: 결제·주문 상품·상품 정보를 한 번에 조회해 정산 금액과 수수료를 계산합니다.
 - **중복 생성 방지**: `payment_id` 유니크 제약조건과 미정산 조건으로 정산을 한 번만 생성합니다.
-- **분산 락**: 재고 변경은 Redisson 락으로 동시 실행을 제어합니다(Core와 같은 `lock:stock:{productId}` 키 공유).
+- **분산 락**: 결제 대사의 재고 확정은 Redisson 락으로 동시 실행을 제어합니다(Core와 같은 `lock:stock:{productId}` 키 공유). 주문 만료의 재고 원복은 분산 락을 잡지 않고 원자적 UPDATE와 DB 행 락만 씁니다 — 주문이 몰릴 때 수많은 주문 요청과 비공정 락을 경쟁하다 만료 재고가 늦게 풀리는 것을 막기 위해서입니다.
 - **DB 분리**: 비즈니스 DB와 Spring Batch 메타데이터 DB를 별도 DataSource로 사용합니다.
 - **대량 처리**: MyBatis 기반 Reader/Writer와 chunk 처리로 구성합니다.
 
